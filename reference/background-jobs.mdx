@@ -1,0 +1,272 @@
+---
+title: "Background Jobs"
+description: "Run any Meerschaum command as a background job with built-in scheduling — no crontab or systemd configuration required."
+---
+
+Meerschaum's job management system lets you run any process in the background — just add `-d` to any command. The built-in scheduler means you no longer have to manually configure `crontab` or `systemd`.
+
+<Info>
+  Jobs are created as `systemd` user services when `systemd` is available (default root directory), or as managed Unix daemons otherwise.
+</Info>
+
+## Creating Jobs
+
+Any Meerschaum action can be executed as a background job by adding the `-d` (`--daemon`) flag:
+
+```bash
+mrsm sync pipes --loop -d
+```
+
+New jobs are assigned random names. Specify a custom name with `--name`:
+
+```bash
+mrsm sync pipes --loop --name syncing-engine -d
+```
+
+<Tip>
+  Chain multiple commands with `+` (similar to `&&` in bash) to build pipeline jobs:
+
+  ```bash
+  sync pipes -i sql:raw + \
+  sync pipes -c sql:raw -i sql:etl + \
+  sync pipes -c sql:etl -i sql:dest
+  ```
+</Tip>
+
+## Managing Jobs
+
+| Command | Description | Useful Flags |
+|---------|-------------|--------------|
+| `show jobs` | Print existing jobs. | `--nopretty`, `-e` |
+| `start jobs` | Start the service(s). | `-e` |
+| `stop jobs` | Stop the service(s). | `-y`, `-e` |
+| `pause jobs` | Suspend the service(s). | `-e` |
+| `delete jobs` | Stop and remove the service(s). | `-y` |
+| `attach job` | Stream output and forward stdin to the process. | `-e` |
+| `show logs` | Stream jobs' output (like `docker compose logs -f`). | `-e` |
+| `attach logs` | Alias for `show logs`. | `-e` |
+
+## Python API
+
+Jobs can be managed programmatically with the `mrsm.Job` class:
+
+```python
+import meerschaum as mrsm
+
+job = mrsm.Job('syncing-engine', 'sync pipes --loop')
+success, msg = job.start()
+```
+
+<Accordion title="More Job API examples">
+  ```python
+  import meerschaum as mrsm
+
+  job = mrsm.Job('syncing-engine', 'sync pipes --loop')
+  job.start()
+
+  print(job.pid)
+  # 12155
+
+  print(job.began)
+  # datetime.datetime(2024, 8, 10, 3, 38, 40, 573621)
+
+  job.pause()
+
+  print(job.paused)
+  # datetime.datetime(2024, 8, 10, 3, 38, 42, 998261)
+
+  job.stop()
+
+  print(job.ended)
+  # datetime.datetime(2024, 8, 10, 3, 38, 44, 618737)
+
+  # Stream the job's output
+  job.monitor_logs()
+
+  job.delete()
+  ```
+</Accordion>
+
+## Schedules
+
+<Warning>
+  As of Meerschaum v2.2.0, scheduling is handled by [APScheduler](https://apscheduler.readthedocs.io) rather than [Rocketry](https://rocketry.readthedocs.io/en/stable/condition_syntax/index.html).
+</Warning>
+
+Run any command on a regular schedule with `-s` or `--schedule`. The basic interval syntax is:
+
+```
+every N [seconds | minutes | hours | days | weeks | months | years]
+```
+
+Convenience aliases (`[unit]ly`) map to `every 1 [unit]`:
+
+- `secondly`
+- `minutely`
+- `hourly`
+- `daily`
+- `weekly`
+- `monthly`
+- `yearly`
+
+### Examples
+
+```bash
+mrsm sync pipes -s 'every 30 minutes' -d
+mrsm sync pipes -s 'hourly' -d
+mrsm sync pipes -s 'daily starting 00:00' -d
+```
+
+### Start Time
+
+Append `starting [time]` to set a reference point for the schedule. If the starting time is in the past, the schedule also fires immediately.
+
+<Tip>
+  Add `tomorrow` or `in 1 minute` to prevent a job from firing on creation:
+
+  ```bash
+  mrsm sync pipes -s 'daily starting tomorrow 10:00' -d
+  mrsm sync pipes -s 'daily starting in 1 minute' -d
+  ```
+</Tip>
+
+| Schedule | Description |
+|----------|-------------|
+| `every 10 minutes starting in 30 seconds` | Beginning 30 seconds from now, fire every 10 minutes. |
+| `hourly starting 00:30` | Fire every hour on the 30th minute. |
+| `daily starting tomorrow 00:30` | Beginning at 30 minutes past midnight UTC, fire daily. |
+| `weekly starting Monday at 12:15 PM` | Fire every week on Monday at 12:15 PM. |
+| `monthly starting 2nd` | Fire once at 00:00 UTC on the second day of each month. |
+| `yearly starting 2025-07-01 12:00` | Beginning in 2025, fire at noon UTC every July 1st. |
+
+<Note>
+  Omitting the starting time uses the current time as the reference point. The default timezone is UTC unless specified.
+</Note>
+
+### Cron Format
+
+For fine-grained control, use standard cron syntax:
+
+```
+[minute] [hour] [day] [month] [week]
+```
+
+For example, `30 * * may-aug mon-fri` runs once per hour on the 30th minute, but only on weekdays in May through August. See the [APScheduler docs](https://apscheduler.readthedocs.io/en/master/api.html#apscheduler.triggers.cron.CronTrigger) for full reference.
+
+### Schedule Combinations
+
+Combine schedules with `&` (alias `and`) or `|` (alias `or`):
+
+```bash
+# Every 6 hours, but only on weekdays in summer 2024:
+every 6 hours & mon-fri & jun-aug & 2024 starting 2024-06-03
+
+# Equivalent cron schedule:
+0 0,6,12,18 * jun-aug mon-fri
+```
+
+```bash
+# Fire at midnight and 2 PM every day:
+daily or 0 14 * * * starting 00:00
+```
+
+<Warning>
+  `&` and `|` may not both be used within the same schedule expression. You may join more than two schedules with the same operator (e.g. `daily and mon-fri and 2024`).
+</Warning>
+
+### Schedule Aliases
+
+| Keyword | Aliases |
+|---------|---------|
+| `&` | `and` |
+| `\|` | `or` |
+| `-` | `through`, `thru`, ` - ` (with spaces) |
+| `starting` | `beginning` |
+| Weekdays (`mon`, `tue`, etc.) | Full names (`Monday`) and `tues`, `thurs` |
+| Months (`jan`, etc.) | Full names (`January`) |
+
+### Verifying Schedules
+
+Preview when a schedule will fire with `show schedule`:
+
+```bash
+mrsm show schedule 'daily and mon-fri starting May 2, 2024'
+```
+
+```
+Next 5 timestamps for schedule 'daily and mon-fri starting May 2, 2024':
+
+  2024-05-02 00:00:00+00:00
+  2024-05-03 00:00:00+00:00
+  2024-05-06 00:00:00+00:00
+  2024-05-07 00:00:00+00:00
+  2024-05-08 00:00:00+00:00
+```
+
+Add an integer to see more timestamps:
+
+```bash
+mrsm show schedule 'daily' 10
+```
+
+<Accordion title="Schedules Python API">
+  Parse schedules programmatically with `parse_schedule()`, which returns an APScheduler `Trigger`:
+
+  ```python
+  from meerschaum.utils.schedule import parse_schedule
+
+  trigger = parse_schedule('daily starting 2024-01-01')
+  trigger.next()
+  # datetime.datetime(2024, 1, 1, 0, 0, tzinfo=datetime.timezone.utc)
+  trigger.next()
+  # datetime.datetime(2024, 1, 2, 0, 0, tzinfo=datetime.timezone.utc)
+  ```
+</Accordion>
+
+## Executors
+
+Executors are to jobs as connectors are to pipes — all jobs run on an executor. There are three built-in executor types:
+
+<CardGroup cols={3}>
+  <Card title="systemd" icon="gear">
+    Runs jobs as `systemd` user services. Used automatically when `systemd` is available and the default root directory is in use.
+  </Card>
+  <Card title="local" icon="computer">
+    Runs jobs as Unix daemons. The API server uses this executor and automatically restarts killed jobs.
+  </Card>
+  <Card title="api:&lt;label&gt;" icon="cloud">
+    Runs jobs on a remote API instance. Specify any registered API connector key.
+  </Card>
+</CardGroup>
+
+Select an executor with the `-e` (`--executor-keys`) flag:
+
+```bash
+# Create the job 'syncing-engine' on 'api:prod':
+sync pipes --name syncing-engine -e api:prod -d
+
+# Run 'show pipes' against 'api:prod':
+show pipes -e api:prod
+```
+
+### Instance vs. Executor
+
+Note the distinction between `-e` and `-i`:
+
+- **`-e`** executes the code remotely and streams back the output.
+- **`-i`** executes locally but syncs data to the specified API instance.
+
+```bash
+# Run sync pipes remotely:
+sync pipes -e api:main
+
+# Run sync pipes locally against the instance 'api:main':
+sync pipes -i api:main
+
+# Run sync pipes remotely, against the server's 'sql:local':
+sync pipes -i sql:local -e api:main
+```
+
+<Note>
+  You can implement a custom executor with the `@make_executor` decorator. See the `Executor` and `SystemdExecutor` classes in the Meerschaum source for an example implementation.
+</Note>

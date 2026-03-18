@@ -1,0 +1,266 @@
+---
+title: "Meerschaum Compose"
+description: "Define pipes, connectors, schedules, and jobs in a single YAML file — the Docker Compose of ETL."
+---
+
+Meerschaum Compose does for Meerschaum what [Docker Compose](https://docs.docker.com/compose/) does for Docker: consolidate your entire project into a single YAML file, including pipes, connectors, schedules, and configuration.
+
+With `mrsm compose up`, syncing jobs start for every instance in the project. Because all configuration lives in the YAML file, Compose projects are ideal for prototyping, collaboration, and consistent deployments.
+
+<Tip>
+  For complex projects, a common pattern is to split work across multiple Compose files:
+
+  ```bash
+  mrsm compose run --file mrsm-compose-00-extract.yaml + \
+       compose run --file mrsm-compose-01-transform.yaml + \
+       compose run --file mrsm-compose-02-load.yaml
+  ```
+
+  This pattern lets multiple projects share root and plugin directories cleanly.
+</Tip>
+
+## Setup
+
+<Steps>
+  <Step title="Install the compose plugin">
+    ```bash
+    mrsm install plugin compose
+    ```
+
+    <Tip>
+      Want to skip setup? Create a new repository from the [Meerschaum Compose Project Template](https://github.com/bmeares/mrsm-compose-template).
+    </Tip>
+  </Step>
+
+  <Step title="Create your project directory">
+    ```bash
+    mkdir awesome-sauce && cd awesome-sauce
+    ```
+  </Step>
+
+  <Step title="Write mrsm-compose.yaml">
+    Create `mrsm-compose.yaml` in the directory. Here is an example that syncs weather data and converts Celsius to Fahrenheit:
+
+    ```yaml
+    sync:
+      schedule: "every 30 seconds"
+
+    pipes:
+    - connector: "plugin:noaa"
+      metric: "weather"
+      location: "atlanta"
+      parameters:
+        noaa:
+          stations:
+            - "KATL"
+
+    - connector: "sql:awesome"
+      metric: "fahrenheit"
+      target: "atl_temp"
+      parameters:
+        query: |-
+          SELECT
+            timestamp,
+            station,
+            (("temperature (degC)" * 1.8) + 32) AS fahrenheit
+          FROM plugin_noaa_weather_atlanta
+        columns:
+          datetime: "timestamp"
+          id: "station"
+
+    plugins:
+      - "noaa"
+
+    config:
+      meerschaum:
+        instance: "sql:awesome"
+        connectors:
+          sql:
+            awesome:
+              database: "awesome.db"
+              flavor: "sqlite"
+    ```
+  </Step>
+
+  <Step title="Bring up the project">
+    ```bash
+    mrsm compose up -f
+    ```
+
+    The `-f` flag follows the logs once jobs are running.
+  </Step>
+</Steps>
+
+## Commands
+
+| Command | Description | Useful Flags |
+|---------|-------------|--------------|
+| `compose init` | Initialize a new project and install dependencies. | |
+| `compose run` | Update and sync the pipes in the compose file. | `--debug` |
+| `compose up` | Bring up syncing jobs (one process per instance). | `-f` (follow logs) |
+| `compose down` | Stop the syncing jobs. | `-v` (drop pipes) |
+| `compose logs` | Follow the jobs' logs. | `--nopretty` |
+| `compose ps` | Show the running status of background jobs. | |
+
+### Other compose commands
+
+All other Meerschaum actions can be executed inside the project environment:
+
+```bash
+# Print environment variables set by the compose file
+mrsm compose show environment
+
+# Verify custom connectors
+mrsm compose show connectors sql:awesome
+
+# Show pipes from the project's default instance
+mrsm compose show pipes
+mrsm compose show columns
+mrsm compose show rowcounts
+
+# Open an interactive SQL session
+mrsm compose sql awesome
+```
+
+## Flags
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `-f` | Follow logs when running `compose up`. | `mrsm compose up -f` |
+| `-v`, `--volumes` | Delete pipes when running `compose down`. | `mrsm compose down -v` |
+| `--dry` | Update pipe registrations without starting sync. | `mrsm compose up --dry` |
+| `--file`, `--compose-file` | Specify an alternate compose file (default: `mrsm-compose.yaml`). | `mrsm compose show connectors --file config-only.yaml` |
+| `--env`, `--env-file` | Specify an alternate environment file (default: `.env`). | `mrsm compose show environment --env secrets.env` |
+
+## Schema
+
+All top-level keys in a Compose file are optional.
+
+<AccordionGroup>
+  <Accordion title="connectors">
+    Define connectors available to the project. Alias for `config.meerschaum.connectors`.
+
+    ```yaml
+    connectors:
+      sql:
+        main: "{sql:dev}"  # Reference host connector sql:dev
+    ```
+  </Accordion>
+
+  <Accordion title="instance">
+    The default connector keys for the project instance. Alias for `config.meerschaum.instance`.
+
+    ```yaml
+    instance: "sql:awesome"
+    ```
+  </Accordion>
+
+  <Accordion title="pipes">
+    List of pipe definitions. Each entry accepts keyword arguments for `mrsm.Pipe`:
+
+    - `connector` *(required)*
+    - `metric` *(required)*
+    - `location` *(default `null`)*
+    - `instance` *(default: project instance)*
+    - `parameters`
+    - `columns` *(alias for `parameters:columns`)*
+    - `target` *(alias for `parameters:target`)*
+    - `tags` *(alias for `parameters:tags`)*
+    - `dtypes` *(alias for `parameters:dtypes`)*
+  </Accordion>
+
+  <Accordion title="sync">
+    Controls the syncing behavior:
+
+    | Key | Default | Description |
+    |-----|---------|-------------|
+    | `schedule` | — | A [schedule string](/reference/background-jobs#schedules) for regular syncing. |
+    | `min_seconds` | `1` | Sleep duration between laps when `--loop` is used. |
+    | `timeout_seconds` | — | Terminate syncing processes that exceed this duration. |
+    | `args` | — | String or list of extra CLI arguments appended to the sync command. |
+  </Accordion>
+
+  <Accordion title="jobs">
+    Override the default syncing jobs. Keys are job names, values are command strings:
+
+    ```yaml
+    jobs:
+      sync: "sync pipes -s 'every 2 hours starting 00:30'"
+      verify: "verify pipes -s 'daily starting 12:00 tomorrow'"
+      date: "date -s 'every 10 seconds'"
+      echo: "echo 'Hello, World!'"
+    ```
+  </Accordion>
+
+  <Accordion title="project_name">
+    Tag given to all pipes in this project. Defaults to the current directory name. Must be unique when using multiple compose files.
+  </Accordion>
+
+  <Accordion title="root_dir">
+    Path to the project root directory. Defaults to `./root/`. See [`MRSM_ROOT_DIR`](/reference/environment#mrsm_root_dir).
+  </Accordion>
+
+  <Accordion title="plugins_dir">
+    Path or list of paths to plugins directories. A value of `null` includes the host environment's plugins. Defaults to `./plugins/`.
+
+    ```yaml
+    plugins_dir:
+      - "./plugins"
+      - null  # also include host environment plugins
+    ```
+  </Accordion>
+
+  <Accordion title="plugins">
+    List of plugins expected in the plugins directory. Missing plugins are installed from `api:mrsm`.
+
+    ```yaml
+    plugins:
+      - "noaa"
+      - "compose"
+      - "my-plugin@api:custom-repo"
+    ```
+  </Accordion>
+
+  <Accordion title="config">
+    Configuration keys to patch on top of the host configuration. See [`MRSM_CONFIG`](/reference/environment#mrsm_config).
+  </Accordion>
+
+  <Accordion title="environment">
+    Additional environment variables to pass to subprocesses.
+  </Accordion>
+
+  <Accordion title="isolation">
+    Set to `subprocess` to execute commands as subprocesses for maximum isolation. By default, commands run within the host Meerschaum process with isolated configuration, plugins, and root directories.
+  </Accordion>
+
+  <Accordion title="daemon">
+    Set to `false` to disable the persistent CLI daemon, executing all commands in-process (equivalent to `--no-daemon`).
+  </Accordion>
+</AccordionGroup>
+
+## Variable Substitution
+
+<Tip>
+  Compose files support several substitution mechanisms:
+
+  - `{MRSM_ROOT_DIR}` — replaced with the root directory path
+  - `{__file__}` — replaced with the compose file's path
+  - `$ENV_VAR` or `${ENV_VAR}` — standard environment variable substitution
+  - `MRSM{key:path}` — symlink to another Meerschaum config key
+
+  ```yaml
+  connectors:
+    sql:
+      foo:
+        flavor: "sqlite"
+        database: "{MRSM_ROOT_DIR}/foo.db"
+      secret:
+        flavor: "postgresql"
+        username: "${PGUSER}"
+        password: ${PGPASSWORD}
+  config:
+    meerschaum:
+      sql:
+        foo: MRSM{meerschaum:connectors:sql:main}  # alias host sql:main
+  ```
+</Tip>

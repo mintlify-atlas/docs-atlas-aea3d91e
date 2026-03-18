@@ -1,97 +1,84 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Meerschaum Documentation"
+description: "Create and manage time-series data pipelines. Sync only what's new, automatically."
+mode: "custom"
 ---
 
-## Setting up
+<div style={{ background: "linear-gradient(135deg, #3466b9 0%, #1a3d7a 100%)", padding: "80px 40px", textAlign: "center", borderRadius: "12px", marginBottom: "40px" }}>
+  <h1 style={{ color: "#ffffff", fontSize: "48px", fontWeight: "700", margin: "0 0 16px 0", fontFamily: "Georgia, serif" }}>
+    Meerschaum
+  </h1>
+  <p style={{ color: "#c1c6cd", fontSize: "20px", margin: "0 0 32px 0", maxWidth: "600px", marginLeft: "auto", marginRight: "auto" }}>
+    Create and manage time-series data pipelines. Sync only what's new, automatically.
+  </p>
+  <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+    <a href="/quickstart" style={{ background: "#ff6a40", color: "#ffffff", padding: "12px 28px", borderRadius: "4px", fontWeight: "600", textDecoration: "none", fontSize: "16px" }}>
+      Get Started
+    </a>
+    <a href="/introduction" style={{ background: "transparent", color: "#ffffff", padding: "12px 28px", borderRadius: "4px", fontWeight: "600", textDecoration: "none", fontSize: "16px", border: "2px solid rgba(255,255,255,0.4)" }}>
+      Learn More
+    </a>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install Meerschaum and sync your first pipe in under 5 minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Core Concepts" icon="book-open" href="/reference/pipes">
+    Understand pipes, connectors, and the sync engine.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Plugin Guide" icon="plug" href="/reference/plugins/writing-plugins">
+    Build a custom data source plugin in minutes.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Why Meerschaum?
 
-Everything you need to create world-class documentation.
+Meerschaum solves the most painful part of time-series ETL: incremental updates. Instead of writing custom logic to fetch only new records, Meerschaum tracks the last sync point for each pipe and automatically fetches only the data you need.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="Incremental sync" icon="rotate">
+    Meerschaum calculates the correct time window for each sync, fetching only new or updated data — no full reloads.
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Any data source" icon="plug">
+    Write a simple `fetch()` function that returns a DataFrame, and Meerschaum handles storage, deduplication, and indexing.
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Multiple backends" icon="database">
+    Store data in PostgreSQL, TimescaleDB, MySQL, SQLite, MSSQL, DuckDB, or your own SQL database.
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="Production ready" icon="shield-check">
+    Background jobs, systemd integration, web API, and a Grafana stack — everything you need for production.
   </Card>
-</Columns>
+</CardGroup>
 
-## Need inspiration?
+## Quick Install
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+```bash
+pip install -U meerschaum
+mrsm stack up -d db grafana
+mrsm bootstrap pipes
+```
+
+## Explore the Docs
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/get-started/installation">
+    Platform-specific setup instructions and requirements.
+  </Card>
+  <Card title="Bootstrap a Pipe" icon="pipe-section" href="/get-started/bootstrap">
+    Use the interactive wizard to configure your first pipeline.
+  </Card>
+  <Card title="Connectors" icon="link" href="/reference/connectors">
+    Connect to SQL databases, APIs, and custom data sources.
+  </Card>
+  <Card title="Plugins" icon="puzzle-piece" href="/reference/plugins">
+    Extend Meerschaum with custom data ingestion logic.
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview">
+    Complete reference for all `mrsm` commands and flags.
+  </Card>
+  <Card title="Python API" icon="code" href="/api-reference/overview">
+    Programmatic access to pipes, connectors, and jobs.
+  </Card>
+</CardGroup>

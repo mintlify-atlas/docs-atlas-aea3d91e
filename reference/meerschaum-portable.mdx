@@ -1,0 +1,109 @@
+---
+title: "Meerschaum Portable"
+description: "A self-contained Meerschaum installation that runs from a single directory — no Python environment setup required."
+---
+
+Sometimes it's not worth the hassle of setting up a complete Python environment. Meerschaum Portable is a self-contained installation that runs entirely within one directory. Download and extract the archive and you can have Meerschaum running in seconds.
+
+<Note>
+  Although Meerschaum Portable is well tested, you may encounter issues such as permissions problems on macOS. If extraction or launch fails, consider the standard installation described on the [Getting Started](/get-started) page.
+</Note>
+
+## Download
+
+Download the archive for your operating system. The **Full** version includes all dependencies; the **Minimal** version has only the PostgreSQL driver — you can install more later with `mrsm upgrade packages`.
+
+<Warning>
+  The extracted Full archive can grow to over 1 GB. Use the Minimal version if disk space is a concern.
+</Warning>
+
+<CardGroup cols={3}>
+  <Card title="Windows 10 x64" icon="windows">
+    [Windows Full](https://meerschaum.io/files/mrsm-full-windows.zip)
+
+    [Windows Minimal](https://meerschaum.io/files/mrsm-minimal-windows.zip)
+  </Card>
+  <Card title="Linux x64" icon="linux">
+    [Linux Full](https://meerschaum.io/files/mrsm-full-linux.tar.gz)
+
+    [Linux Minimal](https://meerschaum.io/files/mrsm-minimal-linux.tar.gz)
+  </Card>
+  <Card title="macOS" icon="apple">
+    [macOS Full](https://meerschaum.io/files/mrsm-full-macos.tar.gz)
+
+    [macOS Minimal](https://meerschaum.io/files/mrsm-minimal-macos.tar.gz)
+  </Card>
+</CardGroup>
+
+## Installation
+
+<Steps>
+  <Step title="Extract the archive">
+    Move the downloaded file to your desired location, then extract:
+
+    <Tabs>
+      <Tab title="Windows">
+        Right-click the `.zip` file and choose **Extract All**. Once extraction finishes, open the folder and double-click `setup.bat`. Allow permissions if prompted.
+      </Tab>
+      <Tab title="Linux">
+        ```bash
+        tar -xvf mrsm-full.tar.gz
+        ```
+      </Tab>
+      <Tab title="macOS">
+        Double-click the archive to open it in Archive Utility, or use the `tar` command from the Linux instructions.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Run Meerschaum">
+    Inside the extracted folder, find the executable called `mrsm` (`mrsm.bat` on Windows). Run it by double-clicking (Windows/macOS) or from a terminal:
+
+    ```bash
+    ./mrsm
+    ```
+
+    The first launch may take a moment as Meerschaum initializes its environment.
+  </Step>
+
+  <Step title="Upgrade to the latest release">
+    Portable releases may be a few versions behind. To upgrade to the latest release, run from within the `mrsm` shell:
+
+    ```bash
+    upgrade meerschaum
+    ```
+  </Step>
+</Steps>
+
+## Maintenance
+
+### Resetting to factory state
+
+Delete the `root` folder inside the extracted directory. This folder holds Meerschaum data and configuration files.
+
+```bash
+rm -rf mrsm/root/
+```
+
+<Warning>
+  Back up your pipe data before deleting the `root` folder — all stored data will be lost.
+</Warning>
+
+### Uninstalling
+
+<Tabs>
+  <Tab title="Windows">
+    Run the included `uninstall.bat` script.
+
+    <Warning>
+      `uninstall.bat` deletes the **parent folder** of `mrsm.bat`. Do **not** place the extracted contents directly on your Desktop or `uninstall.bat` will delete your Desktop folder.
+    </Warning>
+  </Tab>
+  <Tab title="Linux / macOS">
+    Delete the extracted directory:
+
+    ```bash
+    rm -rf mrsm/
+    ```
+  </Tab>
+</Tabs>

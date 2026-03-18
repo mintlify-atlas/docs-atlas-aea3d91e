@@ -1,0 +1,158 @@
+---
+title: "get_pipes()"
+description: "Retrieve a filtered dictionary or list of registered Meerschaum pipes."
+---
+
+`get_pipes()` returns a hierarchical dictionary (or flat list) of `Pipe` objects from a Meerschaum instance.
+
+```python
+import meerschaum as mrsm
+
+pipes = mrsm.get_pipes()
+```
+
+## Signature
+
+```python
+meerschaum.get_pipes(
+    connector_keys: Union[str, List[str], None] = None,
+    metric_keys: Union[str, List[str], None] = None,
+    location_keys: Union[str, List[str], None] = None,
+    tags: Optional[List[str]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    mrsm_instance: Union[str, InstanceConnector, None] = None,
+    as_list: bool = False,
+    as_tags_dict: bool = False,
+    method: str = 'registered',
+    workers: Optional[int] = None,
+    debug: bool = False,
+    **kw: Any,
+) -> Union[PipesDict, List[Pipe], Dict[str, Pipe]]
+```
+
+## Parameters
+
+<ParamField path="connector_keys" type="str | List[str] | None" default="None">
+  Filter by connector keys. If omitted or `'*'`, fetch all connectors.
+
+  Prefix with `'_'` to **exclude** matching keys:
+
+  ```python
+  # All pipes whose connector is NOT sql:main
+  pipes = mrsm.get_pipes(connector_keys='_sql:main')
+  ```
+</ParamField>
+
+<ParamField path="metric_keys" type="str | List[str] | None" default="None">
+  Filter by metric keys. Supports the same negation prefix `'_'` as `connector_keys`.
+</ParamField>
+
+<ParamField path="location_keys" type="str | List[str] | None" default="None">
+  Filter by location keys. Supports the same negation prefix `'_'` as `connector_keys`.
+</ParamField>
+
+<ParamField path="tags" type="List[str] | None" default="None">
+  If provided, only return pipes that have all of these tags.
+
+  ```python
+  pipes = mrsm.get_pipes(tags=['production', 'weather'])
+  ```
+</ParamField>
+
+<ParamField path="params" type="Dict[str, Any] | None" default="None">
+  Additional parameters to filter by as a SQL-style dictionary. For example, `{'a': 1, 'b': 2}` is equivalent to `WHERE a = 1 AND b = 2`.
+</ParamField>
+
+<ParamField path="mrsm_instance" type="str | InstanceConnector | None" default="None">
+  The Meerschaum instance to query. Accepts connector keys like `'sql:main'` or `'api:main'`, or an `InstanceConnector` object. Defaults to the configured default instance.
+</ParamField>
+
+<ParamField path="as_list" type="bool" default="False">
+  If `True`, return a flat list of `Pipe` objects instead of a nested dictionary.
+
+  ```python
+  pipes_list = mrsm.get_pipes(as_list=True)
+  # [Pipe('sql:main', 'weather'), Pipe('plugin:noaa', 'weather')]
+  ```
+</ParamField>
+
+<ParamField path="as_tags_dict" type="bool" default="False">
+  If `True`, return a dictionary mapping tag strings to lists of pipes. Pipes with multiple tags appear in multiple entries.
+
+  ```python
+  tagged = mrsm.get_pipes(as_tags_dict=True)
+  # {'production': [Pipe(...)], 'weather': [Pipe(...)]}
+  ```
+</ParamField>
+
+<ParamField path="method" type="str" default="'registered'">
+  How to discover pipes. Options:
+
+  - `'registered'` (default) — query the instance's pipes table
+  - `'explicit'` — create pipes directly from the provided keys without consulting the instance
+</ParamField>
+
+<ParamField path="workers" type="int | None" default="None">
+  When `as_tags_dict=True`, limit the thread pool to this many workers for tag fetching.
+</ParamField>
+
+## Return Value
+
+By default, returns a nested `PipesDict` in the form:
+
+```python
+{
+    <connector_keys>: {
+        <metric_key>: {
+            <location_key>: Pipe(
+                <connector_keys>,
+                <metric_key>,
+                <location_key>,
+            ),
+        },
+    },
+}
+```
+
+Access a specific pipe:
+
+```python
+pipes = mrsm.get_pipes()
+pipe = pipes['sql:main']['weather'][None]
+```
+
+## Examples
+
+```python
+import meerschaum as mrsm
+
+# Get all pipes as a list
+pipes = mrsm.get_pipes(as_list=True)
+for pipe in pipes:
+    print(pipe)
+
+# Filter by connector and metric
+pipes = mrsm.get_pipes(
+    connector_keys='sql:main',
+    metric_keys='weather',
+    as_list=True,
+)
+
+# Get all pipes from a remote instance
+pipes = mrsm.get_pipes(
+    mrsm_instance='api:main',
+    as_list=True,
+)
+
+# Filter by tags
+pipes = mrsm.get_pipes(
+    tags=['production'],
+    as_list=True,
+)
+
+# Exclude certain connectors
+pipes = mrsm.get_pipes(
+    connector_keys='_plugin:noaa',  # Exclude plugin:noaa
+    as_list=True,
+)
+```

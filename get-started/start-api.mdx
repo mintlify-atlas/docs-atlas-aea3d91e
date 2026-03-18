@@ -1,0 +1,108 @@
+---
+title: "Start the web API"
+description: "Launch the Meerschaum web API and dashboard to manage pipes from a browser."
+---
+
+Meerschaum includes a built-in web server powered by FastAPI, uvicorn, and gunicorn. The web interface mirrors the `mrsm` shell — every command available in the CLI is also available from the browser dashboard.
+
+## Start the API server
+
+<Steps>
+  <Step title="Open the Meerschaum shell">
+    ```bash
+    mrsm
+    ```
+  </Step>
+
+  <Step title="Start the API">
+    ```bash
+    start api
+    ```
+
+    The server starts on port **8000** by default.
+
+    <Tip>
+    To use a different port, pass the `--port` flag:
+    ```bash
+    start api --port 8001
+    ```
+    </Tip>
+  </Step>
+
+  <Step title="Open the dashboard">
+    Visit [http://localhost:8000](http://localhost:8000) in your browser. You will see a login page.
+
+    Create an account or log in to your instance to access the dashboard.
+  </Step>
+
+  <Step title="Create a user (optional)">
+    You can create users directly from the CLI without visiting the browser:
+
+    ```bash
+    register user myuser
+    ```
+  </Step>
+</Steps>
+
+## Using the web dashboard
+
+The left sidebar of the dashboard lists all available commands — the same set you have in the `mrsm` shell.
+
+From the dashboard you can:
+
+- Bootstrap and register new pipes
+- Sync pipes and monitor progress
+- View pipe statistics and data previews
+- Switch between multiple instances using the **instances drop-down** in the top-right corner
+
+<Note>You can add custom commands to the sidebar by writing [action plugins](/reference/plugins/writing-plugins).</Note>
+
+## Start the API from outside the shell
+
+You can also start the API without entering the interactive shell:
+
+```bash
+mrsm start api
+```
+
+To start it as a background daemon:
+
+```bash
+mrsm start api -d
+```
+
+Check the job status with:
+
+```bash
+mrsm show jobs
+```
+
+## Expose the API to other machines
+
+By default the server binds to `localhost`. To allow connections from other hosts on your network, pass the `--host` flag:
+
+```bash
+mrsm start api --host 0.0.0.0 --port 8000
+```
+
+<Warning>Binding to `0.0.0.0` exposes the API on all network interfaces. Make sure you have authentication configured before doing this in a production environment.</Warning>
+
+## REST API access
+
+The Meerschaum API is a fully documented REST API. Once the server is running, you can explore the auto-generated API docs at:
+
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+You can also connect a separate Meerschaum instance to this API server as an `api` connector, allowing you to sync data between Meerschaum deployments.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Compose projects" icon="layer-group" href="/get-started/compose-projects">
+    Declare your entire pipeline in a YAML file for reproducible, version-controlled projects.
+  </Card>
+  <Card title="Bootstrap a pipe" icon="wand-magic-sparkles" href="/get-started/bootstrap">
+    Build your first data pipe with the interactive wizard.
+  </Card>
+</CardGroup>

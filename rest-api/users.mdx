@@ -1,0 +1,258 @@
+---
+title: "User & Auth Endpoints"
+description: "REST API endpoints for user management and authentication."
+---
+
+User endpoints are prefixed with `/mrsm/users`.
+The login endpoint is at `/login`.
+
+## Login
+
+<ResponseField name="POST /login" type="object">
+  Authenticate and obtain a bearer token.
+</ResponseField>
+
+Supports two grant types:
+
+<Tabs>
+  <Tab title="Password grant">
+    ```bash
+    curl -X POST http://localhost:8000/login \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=admin&password=secret"
+    ```
+  </Tab>
+  <Tab title="Client credentials grant">
+    ```bash
+    curl -X POST http://localhost:8000/login \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "grant_type=client_credentials&client_id=<CLIENT_ID>&client_secret=<CLIENT_SECRET>"
+    ```
+  </Tab>
+</Tabs>
+
+<ParamField body="username" type="string">
+  Username for password grant.
+</ParamField>
+
+<ParamField body="password" type="string">
+  Password for password grant.
+</ParamField>
+
+<ParamField body="grant_type" type="string">
+  `password` (default if username/password present) or `client_credentials`.
+</ParamField>
+
+<ParamField body="client_id" type="string (UUID)">
+  Token client ID for `client_credentials` grant.
+</ParamField>
+
+<ParamField body="client_secret" type="string">
+  Token client secret for `client_credentials` grant.
+</ParamField>
+
+<ParamField body="scope" type="string">
+  Space-separated list of requested scopes (defaults to all allowed scopes).
+</ParamField>
+
+**Response:**
+
+```json
+{
+  "access_token": "eyJhbGci...",
+  "token_type": "bearer",
+  "expires": "2026-01-02T00:00:00"
+}
+```
+
+---
+
+## Get Current User
+
+<ResponseField name="GET /mrsm/users/me" type="object">
+  Return information about the authenticated user.
+</ResponseField>
+
+**Required scope:** `users:read`
+
+<CodeGroup>
+```bash curl
+curl http://localhost:8000/mrsm/users/me \
+  -H "Authorization: Bearer <token>"
+```
+
+```python Python
+import requests
+
+resp = requests.get(
+    "http://localhost:8000/mrsm/users/me",
+    headers={"Authorization": "Bearer <token>"},
+)
+print(resp.json())
+```
+</CodeGroup>
+
+**Example response:**
+
+```json
+{
+  "username": "alice",
+  "user_id": 1,
+  "user_type": "admin",
+  "attributes": {
+    "scopes": ["*"]
+  }
+}
+```
+
+---
+
+## List Users
+
+<ResponseField name="GET /mrsm/users" type="array">
+  Return a list of registered usernames.
+</ResponseField>
+
+**Required scope:** `users:read` (on private instances)
+
+```bash
+curl http://localhost:8000/mrsm/users \
+  -H "Authorization: Bearer <token>"
+```
+
+**Example response:**
+
+```json
+["alice", "bob", "carol"]
+```
+
+---
+
+## Register a User
+
+<ResponseField name="POST /mrsm/users/register" type="SuccessTuple">
+  Create a new user account.
+</ResponseField>
+
+```bash
+curl -X POST http://localhost:8000/mrsm/users/register \
+  -F "username=alice" \
+  -F "password=s3cur3p@ss" \
+  -F "email=alice@example.com"
+```
+
+<ParamField body="username" type="string" required>
+  The new user's username.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The new user's password.
+</ParamField>
+
+<ParamField body="email" type="string">
+  The new user's email address.
+</ParamField>
+
+<ParamField body="type" type="string">
+  User type. New users cannot be of type `admin` via the API.
+</ParamField>
+
+<ParamField body="attributes" type="string">
+  JSON-encoded or `key:value` string of additional attributes.
+</ParamField>
+
+**Example response:**
+
+```json
+[true, "Successfully registered user 'alice'."]
+```
+
+<Note>
+  User registration can be disabled by the server administrator via `edit config api` under `api:permissions:registration:users`.
+</Note>
+
+---
+
+## Edit a User
+
+<ResponseField name="POST /mrsm/users/edit" type="SuccessTuple">
+  Update a user's password, email, type, or attributes.
+</ResponseField>
+
+**Required scope:** `users:write`
+
+```bash
+curl -X POST http://localhost:8000/mrsm/users/edit \
+  -H "Authorization: Bearer <token>" \
+  -F "username=alice" \
+  -F "email=alice@newdomain.com"
+```
+
+<ParamField body="username" type="string" required>
+  Username of the account to edit.
+</ParamField>
+
+<ParamField body="password" type="string">
+  New password.
+</ParamField>
+
+<ParamField body="email" type="string">
+  New email address.
+</ParamField>
+
+<ParamField body="type" type="string">
+  New user type (`admin` or `null`). Only admins can set this.
+</ParamField>
+
+<ParamField body="attributes" type="string">
+  JSON-encoded attributes dictionary.
+</ParamField>
+
+---
+
+## Get User ID
+
+<ResponseField name="GET /mrsm/users/{username}/id" type="integer | string | null">
+  Return the user's ID.
+</ResponseField>
+
+**Required scope:** `users:read`
+
+```bash
+curl http://localhost:8000/mrsm/users/alice/id \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Get User Attributes
+
+<ResponseField name="GET /mrsm/users/{username}/attributes" type="object | null">
+  Return a user's attributes dictionary.
+</ResponseField>
+
+```bash
+curl http://localhost:8000/mrsm/users/alice/attributes \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Delete a User
+
+<ResponseField name="DELETE /mrsm/users/{username}" type="SuccessTuple">
+  Delete a user. Requires admin privileges or the user deleting their own account.
+</ResponseField>
+
+**Required scope:** `users:delete`
+
+```bash
+curl -X DELETE http://localhost:8000/mrsm/users/alice \
+  -H "Authorization: Bearer <token>"
+```
+
+**Example response:**
+
+```json
+[true, "Successfully deleted user 'alice'."]
+```

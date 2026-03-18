@@ -1,0 +1,359 @@
+---
+title: "Pipe"
+description: "The Pipe class is the primary data abstraction in Meerschaum, representing a datastream identified by connector, metric, and optional location keys."
+---
+
+A `Pipe` represents a datastream identified by three keys:
+
+1. **Connector keys** — the data source (e.g. `'sql:main'`, `'plugin:noaa'`)
+2. **Metric key** — a label for the pipe's contents (e.g. `'weather'`)
+3. **Location** — optional further subdivision (e.g. `'atlanta'`, or `None`)
+
+```python
+import meerschaum as mrsm
+
+pipe = mrsm.Pipe('sql:main', 'weather', 'atlanta')
+```
+
+## Constructor
+
+```python
+meerschaum.Pipe(
+    connector: str = '',
+    metric: str = '',
+    location: Optional[str] = None,
+    parameters: Optional[Dict[str, Any]] = None,
+    columns: Union[Dict[str, str], List[str], None] = None,
+    indices: Optional[Dict[str, Union[str, List[str]]]] = None,
+    tags: Optional[List[str]] = None,
+    target: Optional[str] = None,
+    dtypes: Optional[Dict[str, str]] = None,
+    instance: Optional[Union[str, InstanceConnector]] = None,
+    upsert: Optional[bool] = None,
+    autoincrement: Optional[bool] = None,
+    autotime: Optional[bool] = None,
+    static: Optional[bool] = None,
+    enforce: Optional[bool] = None,
+    null_indices: Optional[bool] = None,
+    mixed_numerics: Optional[bool] = None,
+    temporary: bool = False,
+    cache: Optional[bool] = None,
+)
+```
+
+<ParamField path="connector" type="str">
+  Keys for the pipe's source connector, e.g. `'sql:main'` or `'plugin:noaa'`.
+</ParamField>
+
+<ParamField path="metric" type="str">
+  Label for the pipe's contents, e.g. `'weather'`.
+</ParamField>
+
+<ParamField path="location" type="str | None" default="None">
+  Optional label for the pipe's location, e.g. `'atlanta'`. Defaults to `None`.
+</ParamField>
+
+<ParamField path="parameters" type="Dict[str, Any] | None" default="None">
+  Optionally set the pipe's parameters (columns, dtypes, fetch definitions, etc.) from the constructor. Edit persisted parameters with `edit pipes`.
+</ParamField>
+
+<ParamField path="columns" type="Dict[str, str] | List[str] | None" default="None">
+  Set the `columns` key of `parameters`. Maps logical roles (e.g. `'datetime'`, `'id'`) to column names in the data.
+
+  ```python
+  pipe = mrsm.Pipe(
+      'csv', 'energy',
+      columns={'datetime': 'time', 'id': 'station_id'},
+  )
+  ```
+</ParamField>
+
+<ParamField path="tags" type="List[str] | None" default="None">
+  A list of strings added under `parameters['tags']`. Pipes can be filtered by tags with `--tags`.
+</ParamField>
+
+<ParamField path="target" type="str | None" default="None">
+  Override the underlying table name. Defaults to the metric key.
+</ParamField>
+
+<ParamField path="dtypes" type="Dict[str, str] | None" default="None">
+  Map column names to dtype strings (e.g. `{'timestamp': 'datetime64[ns]', 'value': 'float64'}`).
+</ParamField>
+
+<ParamField path="instance" type="str | InstanceConnector | None" default="None">
+  The Meerschaum instance where the pipe resides. Defaults to the configured default instance (`'sql:main'`). Accepts connector keys like `'sql:local'` or `'api:main'`.
+</ParamField>
+
+<ParamField path="upsert" type="bool | None" default="None">
+  If `True`, enable upsert mode. Rows with matching index values are updated instead of duplicated.
+</ParamField>
+
+<ParamField path="autoincrement" type="bool | None" default="None">
+  If `True`, automatically generate an integer primary key column.
+</ParamField>
+
+<ParamField path="autotime" type="bool | None" default="None">
+  If `True`, automatically add a server-side timestamp column on each insert.
+</ParamField>
+
+<ParamField path="static" type="bool | None" default="None">
+  If `True`, prevent new columns from being added when syncing.
+</ParamField>
+
+<ParamField path="enforce" type="bool | None" default="None">
+  If `False`, skip dtype enforcement on incoming data. Defaults to `True`.
+</ParamField>
+
+<ParamField path="null_indices" type="bool | None" default="None">
+  Set to `False` if there will be no null values in the index columns. Defaults to `True`.
+</ParamField>
+
+<ParamField path="mixed_numerics" type="bool | None" default="None">
+  If `True`, integer columns will be converted to `numeric` when floats are synced. Defaults to `True`.
+</ParamField>
+
+<ParamField path="temporary" type="bool" default="False">
+  If `True`, prevent instance tables (pipes, users, plugins) from being created.
+</ParamField>
+
+<ParamField path="cache" type="bool | None" default="None">
+  If `True`, cache the pipe's metadata to disk in addition to in-memory caching.
+</ParamField>
+
+---
+
+## Key Methods
+
+### `sync()`
+
+Fetch new data from the source and update the pipe's table with new data.
+
+```python
+success, message = pipe.sync(df)
+```
+
+<ParamField path="df" type="pd.DataFrame | Dict | List | str | None" default="InferFetch">
+  An optional DataFrame (or dict/list of dicts) to sync into the pipe. If omitted, Meerschaum calls the connector's `fetch()` method.
+</ParamField>
+
+<ParamField path="begin" type="datetime | int | str | None" default="''">
+  The earliest datetime to search for data.
+</ParamField>
+
+<ParamField path="end" type="datetime | int | str | None" default="None">
+  The latest datetime to search for data.
+</ParamField>
+
+<ParamField path="check_existing" type="bool" default="True">
+  If `True`, pull and diff with existing data before inserting new rows.
+</ParamField>
+
+<ParamField path="workers" type="int | None" default="None">
+  Limit concurrent sync threads (only when the instance connector is thread-safe).
+</ParamField>
+
+<ParamField path="chunksize" type="int" default="-1">
+  Number of rows to sync per chunk. `-1` uses the system default (900 rows).
+</ParamField>
+
+<ParamField path="force" type="bool" default="False">
+  If `True`, retry the sync up to `retries` times.
+</ParamField>
+
+<ParamField path="retries" type="int" default="10">
+  Number of retry attempts when `force=True`.
+</ParamField>
+
+**Returns:** `SuccessTuple` — `(True, 'message')` on success, `(False, 'error')` on failure.
+
+---
+
+### `get_data()`
+
+Retrieve the pipe's data as a Pandas DataFrame.
+
+```python
+df = pipe.get_data(
+    begin='2024-01-01',
+    end='2024-12-31',
+    params={'station': ['KATL', 'KCEU']},
+)
+```
+
+<ParamField path="select_columns" type="List[str] | None" default="None">
+  If provided, only select these columns (equivalent to `SELECT col1, col2`).
+</ParamField>
+
+<ParamField path="omit_columns" type="List[str] | None" default="None">
+  Remove these columns from the result.
+</ParamField>
+
+<ParamField path="begin" type="datetime | int | str | None" default="None">
+  Lower bound datetime (inclusive). Translates to `WHERE datetime >= begin`.
+</ParamField>
+
+<ParamField path="end" type="datetime | int | str | None" default="None">
+  Upper bound datetime (exclusive). Translates to `WHERE datetime < end`.
+</ParamField>
+
+<ParamField path="params" type="Dict[str, Any] | None" default="None">
+  Filter the data by a dictionary of parameters, e.g. `{'station': 'KATL'}` or `{'station': ['KATL', 'KCEU']}`.
+</ParamField>
+
+<ParamField path="as_iterator" type="bool" default="False">
+  If `True`, return a generator of DataFrame chunks.
+</ParamField>
+
+<ParamField path="as_dask" type="bool" default="False">
+  If `True`, return a `dask.DataFrame` (load into Pandas with `.compute()`).
+</ParamField>
+
+<ParamField path="limit" type="int | None" default="None">
+  Cap the result to this many rows.
+</ParamField>
+
+<ParamField path="order" type="str | None" default="'asc'">
+  Sort the result by index columns. Pass `None` to skip sorting.
+</ParamField>
+
+**Returns:** `pd.DataFrame | None`
+
+---
+
+### `register()`
+
+Register the pipe in its instance's pipes table.
+
+```python
+success, message = pipe.register()
+```
+
+**Returns:** `SuccessTuple`
+
+---
+
+### `exists()`
+
+Return `True` if the pipe's underlying table exists.
+
+```python
+if pipe.exists():
+    df = pipe.get_data()
+```
+
+**Returns:** `bool`
+
+---
+
+### `delete()`
+
+Delete the pipe from the instance's pipes table (does not drop the underlying table).
+
+```python
+success, message = pipe.delete()
+```
+
+**Returns:** `SuccessTuple`
+
+---
+
+### `drop()`
+
+Drop the pipe's underlying data table.
+
+```python
+success, message = pipe.drop()
+```
+
+**Returns:** `SuccessTuple`
+
+---
+
+### `verify()`
+
+Verify the pipe's data integrity by checking for gaps and duplicates.
+
+```python
+success, message = pipe.verify()
+```
+
+**Returns:** `SuccessTuple`
+
+---
+
+### `get_rowcount()`
+
+Return the number of rows in the pipe's table.
+
+```python
+count = pipe.get_rowcount()
+print(f"Pipe has {count} rows.")
+```
+
+**Returns:** `int | None`
+
+---
+
+## Key Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `connector_keys` | `str` | The pipe's connector keys string, e.g. `'sql:main'` |
+| `metric` / `metric_key` | `str` | The pipe's metric key |
+| `location` / `location_key` | `str \| None` | The pipe's location key |
+| `parameters` | `Dict[str, Any]` | The full parameters dictionary |
+| `columns` | `Dict[str, str]` | Maps logical column roles to column names |
+| `dtypes` | `Dict[str, str]` | Maps column names to dtype strings |
+| `tags` | `List[str]` | List of tag strings |
+| `target` | `str` | The underlying table name |
+| `id` | `int \| None` | The pipe's integer ID in the instance |
+
+---
+
+## Examples
+
+<CodeGroup>
+  ```python Manual Sync
+  import meerschaum as mrsm
+  import pandas as pd
+
+  pipe = mrsm.Pipe(
+      'csv', 'energy',
+      columns={'datetime': 'time', 'id': 'station_id'},
+  )
+
+  df = pd.read_csv('data.csv')
+  success, message = pipe.sync(df)
+  print(message)
+  ```
+
+  ```python Fetch from SQL
+  import meerschaum as mrsm
+
+  pipe = mrsm.Pipe(
+      'sql:remote_server', 'energy',
+      parameters={
+          'fetch': {
+              'definition': 'SELECT * FROM energy_table',
+          },
+          'columns': {'datetime': 'time', 'id': 'station_id'},
+      },
+  )
+
+  success, message = pipe.sync()
+  print(message)
+  ```
+
+  ```python Read Data
+  import meerschaum as mrsm
+
+  pipe = mrsm.Pipe('plugin:noaa', 'weather')
+
+  df = pipe.get_data(
+      begin='2020-01-01',
+      end='2021-01-01',
+      params={'station': ['KATL', 'KCEU']},
+  )
+  print(df.head())
+  ```
+</CodeGroup>

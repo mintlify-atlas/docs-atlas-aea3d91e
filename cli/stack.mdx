@@ -1,0 +1,80 @@
+---
+title: "mrsm stack"
+description: "Control the Meerschaum Docker Compose stack."
+---
+
+## Synopsis
+
+```bash
+mrsm stack [<compose_command>] [flags]
+```
+
+## Description
+
+`stack` is a thin wrapper around `docker compose` (or legacy `docker-compose`) that manages the Meerschaum infrastructure stack defined in the generated `docker-compose.yml` file.
+
+The compose file and related resources are written to the Meerschaum stack configuration directory on first use.
+
+## Options
+
+<ParamField query="compose_command" type="string" default="up">
+  The Docker Compose sub-command to run (e.g. `up`, `down`, `ps`, `logs`, `config`, `pull`, `build`).
+</ParamField>
+
+<ParamField query="-y, --yes" type="flag">
+  Answer yes to all prompts (e.g. volume deletion confirmation).
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Force execution without prompts.
+</ParamField>
+
+<ParamField query="--debug" type="flag">
+  Print verbose output.
+</ParamField>
+
+## Examples
+
+```bash
+# Start the stack in detached mode (default compose command is 'up')
+mrsm stack up -d
+
+# Stop the stack
+mrsm stack down
+
+# View container status
+mrsm stack ps
+
+# View stack logs
+mrsm stack logs
+
+# Print the resolved docker-compose config
+mrsm stack config
+
+# Pull latest images
+mrsm stack pull
+
+# Tear down the stack and remove volumes (prompted for confirmation)
+mrsm stack down -v
+```
+
+<Warning>
+  Running `mrsm stack down -v` will permanently delete all Docker volumes. Meerschaum prompts for confirmation before proceeding.
+</Warning>
+
+<Note>
+  Meerschaum uses the built-in `docker compose` plugin if available, otherwise falls back to the standalone `docker-compose` binary or the `compose` Python package installed into the `mrsm` virtual environment.
+</Note>
+
+## Requirements
+
+- Docker must be running (`sudo systemctl start docker` or Docker Desktop).
+- `docker compose` plugin, `docker-compose` binary, or the `compose` Python package.
+
+```bash
+# Verify Docker is available
+docker info
+
+# Verify compose is available
+docker compose version
+```

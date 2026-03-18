@@ -1,0 +1,243 @@
+---
+title: "API Instance"
+description: "Deploy and connect to a Meerschaum API instance for managing pipes, jobs, and plugins over the network."
+---
+
+The Meerschaum API instance lets you manage [pipes](/reference/pipes), [jobs](/reference/background-jobs), and [connectors](/reference/connectors) over the Internet. Start the API server with the stack or via `start api`.
+
+## Usage
+
+Starting the Meerschaum API server lets you treat your host as:
+
+<CardGroup cols={3}>
+  <Card title="API Instance" icon="server">
+    For managing pipes remotely via `api:` connectors.
+  </Card>
+  <Card title="Plugin Repository" icon="puzzle-piece">
+    For storing and distributing plugins to other instances.
+  </Card>
+  <Card title="Remote Executor" icon="play">
+    For running background jobs on the remote host.
+  </Card>
+</CardGroup>
+
+### Adding Connectors
+
+Add new `api` connectors with `bootstrap connector` or by declaring an environment connector:
+
+```bash
+# URI is in the form 'protocol://user:pass@host:port'
+export MRSM_API_FOO='https://foo:bar@mrsm.example.com'
+```
+
+### Remote Actions
+
+Add `-e` to client commands to execute them remotely on your API instance:
+
+```bash
+sync pipes -e api:main
+```
+
+When running the `mrsm` shell, the `executor` command temporarily routes all session commands remotely:
+
+```bash
+executor api:main
+```
+
+### API Documentation
+
+Visit your API instance's Swagger documentation at `/docs` or ReDoc at `/redoc`.
+
+---
+
+## Tokens
+
+Meerschaum tokens are long-lived API keys that grant programmatic access without using a username and password — ideal for IoT devices or CI/CD pipelines.
+
+<Warning>
+  The **Client Secret** is only shown once upon token creation. Copy it somewhere safe immediately.
+</Warning>
+
+Each token provides:
+
+| Field | Description |
+|---|---|
+| **Client ID** | A public, unique identifier (UUID) |
+| **Client Secret** | A private secret (treat like a password) |
+| **API Key** | Used in the `Authorization` header — wraps Client ID and Secret |
+| **Label** | A human-readable name to identify the token |
+| **Expiration** | Optional timestamp after which the token becomes invalid |
+| **Scopes** | List of permissions defining what actions the token may perform |
+
+### Registering a Token
+
+```bash
+mrsm register token
+```
+
+### Python API
+
+```python
+import meerschaum as mrsm
+from meerschaum.core import Token, User
+
+# Tokens must be associated with a user.
+user = User('myuser', instance='sql:main')
+
+token = Token(
+    label='my-iot-device',
+    user=user,
+    instance='sql:main',
+)
+
+success, msg = token.register()
+if not success:
+    print(msg)
+else:
+    print(f"Client ID: {token.id}")
+    print(f"Client Secret: {token.secret}")
+    print(f"API Key: {token.get_api_key()}")
+```
+
+### Using a Token
+
+Two authentication methods are supported:
+
+1. **OAuth flow** — POST the Client ID and Client Secret to `/login` to receive a short-lived bearer token.
+2. **Direct header** — Set the API Key directly in the `Authorization` header:
+
+```bash
+export API_KEY="mrsm-key:YTg1ZTI3NDEtZ..."
+curl -X GET http://localhost:8000/pipes \
+  -H "Authorization: $API_KEY"
+```
+
+---
+
+## Web Console
+
+The Meerschaum Web Console provides a graphical interface served by the API instance. Start the API with `mrsm start api` and navigate to your host URL (e.g., [http://localhost:8000](http://localhost:8000)).
+
+<AccordionGroup>
+  <Accordion title="Webterm">
+    The webterm provides an interactive terminal tied to your username. Run actions by clicking **Exec** or type commands directly into the shell session.
+  </Accordion>
+  <Accordion title="Pipes">
+    Filter pipes by connector, metric, location, and tags using the dashboard dropdowns. The dedicated **Pipes** page at `/dash/pipes` stores state in the URL for easy sharing.
+  </Accordion>
+  <Accordion title="Plugins">
+    Visit `/dash/plugins` to browse and download plugins registered to the API instance as a repository.
+  </Accordion>
+  <Accordion title="Tokens">
+    Manage long-lived tokens at `/dash/tokens`. Create new tokens with the `+` button; edit or delete existing tokens from the context menu.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Deployment
+
+<Tabs>
+  <Tab title="Meerschaum Stack (easiest)">
+    With [Docker](https://www.docker.com/get-started/) installed, use the built-in stack:
+
+    ```bash
+    mrsm stack up -d
+    ```
+
+    This starts a pre-configured Docker Compose project with an `api` service running on [http://localhost:8000](http://localhost:8000). Host connectors are automatically passed into the container.
+
+    <Tip>
+      Run `mrsm edit config stack` under the `docker-compose.yaml` key to customize the stack's Compose project.
+    </Tip>
+  </Tab>
+
+  <Tab title="Bare Metal">
+    Run the API directly on your host without Docker:
+
+    ```bash
+    # --production starts the server with gunicorn for self-healing
+    mrsm start api --production
+    ```
+
+    A common pattern for a `systemd`-managed API instance:
+
+    ```bash
+    mrsm start api --production --name api-instance -d
+    ```
+  </Tab>
+
+  <Tab title="Docker">
+    Base your images off `bmeares/meerschaum`:
+
+    ```dockerfile
+    FROM bmeares/meerschaum
+
+    RUN mrsm install plugin compose
+    COPY --chown=meerschaum:meerschaum ./ /app
+    WORKDIR /app
+    RUN mrsm compose init
+
+    ENTRYPOINT ["/app/docker/bootstrap.sh"]
+    ```
+
+    Or install into a custom image:
+
+    ```dockerfile
+    FROM python
+
+    RUN pip install meerschaum && mrsm upgrade packages api -y
+
+    ENTRYPOINT ["python", "-m", "meerschaum"]
+    ```
+  </Tab>
+
+  <Tab title="Kubernetes">
+    Use the [Meerschaum Helm chart on Artifact Hub](https://artifacthub.io/packages/helm/meerschaum/meerschaum). It runs the `bmeares/meerschaum` Docker image for k8s environments.
+  </Tab>
+
+  <Tab title="AWS">
+    Run the `bmeares/meerschaum` Docker image with ECS or on EC2 as you would any other Docker container.
+  </Tab>
+</Tabs>
+
+### TLS / HTTPS
+
+To add HTTPS via a certificate on hand:
+
+```bash
+mrsm start api --keyfile /path/to/key --certfile /path/to/cert
+```
+
+For a production NGINX proxy pass with Let's Encrypt, create `/etc/nginx/conf.d/mrsm.conf` (replacing `DOMAIN` with your root domain):
+
+```nginx
+server {
+    server_name mrsm.DOMAIN;
+    listen 80;
+    listen [::]:80;
+
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://localhost:8000;
+    }
+
+    location ~* /(ws|websocket)(/|$) {
+        proxy_pass http://localhost:8000$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_read_timeout 86400;
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+Then activate HTTPS with certbot:
+
+```bash
+sudo systemctl reload nginx
+sudo certbot --nginx
+```

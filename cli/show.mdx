@@ -1,0 +1,239 @@
+---
+title: "mrsm show"
+description: "Display information about pipes, connectors, jobs, plugins, configuration, and more."
+---
+
+## Synopsis
+
+```bash
+mrsm show <subcommand> [arguments] [flags]
+```
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `pipes` | Display registered pipes as a tree |
+| `data` | Display pipe data as a DataFrame |
+| `columns` | Show registered and table columns for pipes |
+| `rowcounts` | Show row counts for pipes |
+| `connectors` | Display connector configuration |
+| `config` | Display the configuration dictionary |
+| `plugins` | List installed or available plugins |
+| `packages` | List Meerschaum dependency packages |
+| `jobs` | Show running and stopped background jobs |
+| `logs` | Stream or print job logs |
+| `users` | List registered users on an instance |
+| `actions` | List available CLI actions |
+| `version` | Print the Meerschaum version |
+| `environment` | Print `MRSM_*` environment variables |
+| `tags` | Show pipe tags and associated pipes |
+| `schedules` | Preview upcoming timestamps for a schedule |
+| `tokens` | Display registered API tokens |
+| `venvs` | List virtual environments |
+| `arguments` | Print the parsed keyword arguments |
+
+---
+
+## `show pipes`
+
+Print a tree of all registered pipes.
+
+```bash
+mrsm show pipes [-c <connector>] [-m <metric>] [-l <location>] [-t <tags>]
+```
+
+<ParamField query="--nopretty" type="flag">
+  Output each pipe as a JSON object on a separate line.
+</ParamField>
+
+---
+
+## `show data`
+
+Fetch and display pipe data as a Pandas DataFrame.
+
+```bash
+mrsm show data [<minutes> | all] [--begin <date>] [--end <date>] [flags]
+```
+
+<ParamField query="minutes" type="number">
+  Fetch the last N minutes of data (default: 1440 minutes). Pass `all` to retrieve everything.
+</ParamField>
+
+<ParamField query="--begin" type="string">
+  Start of the date range (ISO 8601). Must specify at least the day.
+</ParamField>
+
+<ParamField query="--end" type="string">
+  End of the date range (ISO 8601).
+</ParamField>
+
+<ParamField query="--params" type="json">
+  Additional filter parameters as a JSON dictionary.
+</ParamField>
+
+<ParamField query="--gui" type="flag">
+  Open an interactive pandasgui window.
+</ParamField>
+
+```bash
+# Show last 1440 minutes (default)
+mrsm show data -m weather
+
+# Show all data
+mrsm show data all -m sales
+
+# Filter by date range
+mrsm show data --begin 2024-01-01 --end 2025-01-01 -c sql:main
+
+# Open interactive GUI
+mrsm show data -m weather --gui
+```
+
+---
+
+## `show columns`
+
+Display the registered and actual table columns for matched pipes.
+
+```bash
+mrsm show columns [pipe filters]
+```
+
+---
+
+## `show rowcounts`
+
+Print the row count for each matched pipe.
+
+```bash
+mrsm show rowcounts [remote] [pipe filters]
+```
+
+Pass `remote` as the first argument to execute `COUNT(*)` on the source server instead of the destination.
+
+---
+
+## `show connectors`
+
+Display connector configuration and, optionally, specific connector attributes.
+
+```bash
+mrsm show connectors [<type:label>]
+```
+
+```bash
+# Show all configured connectors
+mrsm show connectors
+
+# Show attributes for a specific connector
+mrsm show connectors sql:main
+```
+
+---
+
+## `show config`
+
+Display the Meerschaum configuration dictionary. Subcommands are recursive index keys.
+
+```bash
+mrsm show config [key...]
+```
+
+```bash
+# Show full meerschaum config
+mrsm show config
+
+# Show a nested key
+mrsm show config meerschaum connectors
+```
+
+---
+
+## `show plugins`
+
+List installed or available plugins.
+
+```bash
+mrsm show plugins [all | <username>] [-r <repository>]
+```
+
+```bash
+# List locally installed plugins
+mrsm show plugins
+
+# List all plugins in the repository
+mrsm show plugins all
+
+# List plugins by user
+mrsm show plugins alice
+```
+
+---
+
+## `show jobs`
+
+Display background job status.
+
+```bash
+mrsm show jobs [<job_name>...] [-e <executor>]
+```
+
+---
+
+## `show logs`
+
+Stream or print logs for one or more jobs.
+
+```bash
+mrsm show logs [<job_name>...] [--nopretty]
+```
+
+<ParamField query="--nopretty" type="flag">
+  Print the full log file contents to stdout instead of streaming.
+</ParamField>
+
+```bash
+# Stream all job logs live
+mrsm show logs
+
+# Stream logs for a specific job
+mrsm show logs my-sync-job
+
+# Print full log file
+mrsm show logs my-sync-job --nopretty
+```
+
+---
+
+## `show version`
+
+```bash
+mrsm show version [--nopretty]
+```
+
+---
+
+## `show schedules`
+
+Preview upcoming timestamps for a schedule expression.
+
+```bash
+mrsm show schedules '<schedule>' [<count>]
+```
+
+```bash
+mrsm show schedules 'daily starting 00:00'
+mrsm show schedules 'every 12 hours and mon-fri starting 2024-01-01' 10
+```
+
+---
+
+## `show tokens`
+
+Display registered API tokens on an instance.
+
+```bash
+mrsm show tokens [<label_or_id>...] [-i <instance>] [--nopretty]
+```

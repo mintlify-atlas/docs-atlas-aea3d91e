@@ -1,0 +1,131 @@
+---
+title: "Stack"
+description: "Launch a full Meerschaum installation — TimescaleDB, API server, Valkey, and Grafana — with a single command."
+---
+
+The Meerschaum stack is an integrated collection of services designed to help you start visualizing your data as quickly as possible. The `stack` command wraps [Docker Compose](https://docs.docker.com/compose/) to create a full-stack Meerschaum installation.
+
+## Services
+
+The default stack starts four services:
+
+| Service | Description | Image |
+|---------|-------------|-------|
+| `db` | TimescaleDB instance corresponding to `sql:main`. | `timescale/timescaledb:latest-pg16-oss` |
+| `api` | Production Meerschaum Web API server corresponding to `api:main`. | `bmeares/meerschaum:api` |
+| `valkey` | Valkey instance corresponding to `valkey:main`. Used for session caching by `api`. | `bitnami/valkey:latest` |
+| `grafana` | Grafana instance pre-connected to `sql:main`. | `grafana/grafana:latest` |
+
+<Tip>
+  Hop into a shell in the `api` service container:
+
+  ```bash
+  mrsm stack exec -it api mrsm
+  ```
+</Tip>
+
+## Docker Images
+
+The official image [`bmeares/meerschaum`](https://hub.docker.com/r/bmeares/meerschaum) is tagged with the following scheme:
+
+| Tag | Contents |
+|-----|----------|
+| `latest` / `api` | PostgreSQL driver and API server dependencies. |
+| `full` | API dependencies plus drivers for Microsoft SQL Server and Oracle SQL, and graphical dependencies. |
+| `minimal` | PostgreSQL driver only, no additional Python packages. |
+| `{version}-api` | `api` image pinned to a specific version. |
+| `{version}-full` | `full` image pinned to a specific version. |
+| `{version}-minimal` | `minimal` image pinned to a specific version. |
+
+## Requirements
+
+You need [Docker](https://www.docker.com/get-started) installed to run the stack.
+
+<Tabs>
+  <Tab title="Windows / macOS">
+    Install [Docker Desktop](https://www.docker.com/get-started).
+  </Tab>
+  <Tab title="Linux">
+    Search your repositories for `docker.io` or run the convenience script:
+
+    ```bash
+    curl https://get.docker.com | sh
+    ```
+
+    Then add yourself to the `docker` group and log out and back in:
+
+    ```bash
+    sudo usermod -aG docker myusername
+    ```
+  </Tab>
+</Tabs>
+
+## Starting the Stack
+
+<Steps>
+  <Step title="Start database and Grafana">
+    Bring up the `db` and `grafana` services in detached mode:
+
+    ```bash
+    mrsm stack up -d db grafana
+    ```
+
+    <Note>
+      The `stack` command wraps a pre-configured `docker-compose` project. If `docker-compose` is not installed, Meerschaum will automatically install it inside a virtual environment.
+    </Note>
+  </Step>
+
+  <Step title="Open Grafana">
+    Open a browser and navigate to [http://localhost:3000](http://localhost:3000).
+
+    Log in with the default credentials:
+    - **Username:** `admin`
+    - **Password:** `admin`
+
+    Grafana arrives pre-configured with the Meerschaum TimescaleDB database as a data source.
+  </Step>
+
+  <Step title="Start the full stack (optional)">
+    To also start the API server and Valkey cache:
+
+    ```bash
+    mrsm stack up -d
+    ```
+  </Step>
+</Steps>
+
+## Stopping the Stack
+
+Stop all running services:
+
+```bash
+mrsm stack down
+```
+
+Stop services **and delete all data volumes**:
+
+```bash
+mrsm stack down -v
+```
+
+<Warning>
+  The `-v` flag in `stack down -v` deletes **all** volumes in the stack, including pipe data stored in TimescaleDB.
+
+  To delete only a specific volume — for example, just Grafana's data — use `docker volume rm`:
+
+  ```bash
+  docker volume rm mrsm_grafana_storage
+  ```
+</Warning>
+
+## Editing the Stack
+
+Certain parameters such as the main database username and password are linked from the [connectors](/reference/connectors) configuration.
+
+To open the full Docker Compose YAML file in your editor:
+
+```bash
+mrsm edit config stack
+```
+
+You can also view and patch any stack configuration key with `mrsm edit config`.

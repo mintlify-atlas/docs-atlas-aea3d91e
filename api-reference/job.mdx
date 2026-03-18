@@ -1,0 +1,213 @@
+---
+title: "Job"
+description: "Manage background Meerschaum processes locally or remotely with the Job class."
+---
+
+A `Job` is Meerschaum's abstraction over background daemon processes. Jobs can run locally (managed by the local daemon system or `systemd`) or remotely on an API instance.
+
+```python
+from meerschaum import Job
+```
+
+## Constructor
+
+```python
+Job(
+    name: str,
+    sysargs: Union[List[str], str, None] = None,
+    env: Optional[Dict[str, str]] = None,
+    executor_keys: Optional[str] = None,
+    delete_after_completion: bool = False,
+)
+```
+
+<ParamField path="name" type="str">
+  The name of the job. Also used as the daemon ID. The following characters are not allowed: `, ; ' " $ # = * & ! \` ~`
+</ParamField>
+
+<ParamField path="sysargs" type="List[str] | str | None" default="None">
+  The command to execute as a list of argument strings (or a single string to be shell-split), e.g. `'sync pipes --loop'` or `['sync', 'pipes', '--loop']`.
+</ParamField>
+
+<ParamField path="env" type="Dict[str, str] | None" default="None">
+  Environment variables to set in the job's process.
+</ParamField>
+
+<ParamField path="executor_keys" type="str | None" default="None">
+  If provided, execute the job on a remote API instance (e.g. `'api:main'`). If `None`, the job runs locally.
+</ParamField>
+
+<ParamField path="delete_after_completion" type="bool" default="False">
+  If `True`, delete the job automatically when it finishes executing.
+</ParamField>
+
+---
+
+## Class Methods
+
+### `Job.from_pid(pid)`
+
+Build a `Job` from the PID of a running Meerschaum process:
+
+```python
+job = Job.from_pid(12345)
+```
+
+<ParamField path="pid" type="int">
+  The PID of the running Meerschaum process.
+</ParamField>
+
+<ParamField path="executor_keys" type="str | None" default="None">
+  The executor keys to assign to the job.
+</ParamField>
+
+---
+
+## Instance Methods
+
+### `start()`
+
+Start the job's daemon:
+
+```python
+success, message = job.start()
+```
+
+**Returns:** `SuccessTuple`
+
+### `stop()`
+
+Stop the job's daemon:
+
+```python
+success, message = job.stop(timeout_seconds=30)
+```
+
+<ParamField path="timeout_seconds" type="int | float | None" default="None">
+  How long to wait for the job to stop before returning.
+</ParamField>
+
+**Returns:** `SuccessTuple`
+
+### `pause()`
+
+Pause the job's daemon (send `SIGSTOP`).
+
+**Returns:** `SuccessTuple`
+
+### `delete()`
+
+Delete the job and its daemon data.
+
+**Returns:** `SuccessTuple`
+
+### `is_running()`
+
+Return `True` if the job is currently running.
+
+**Returns:** `bool`
+
+### `exists()`
+
+Return `True` if the job exists.
+
+**Returns:** `bool`
+
+---
+
+## Key Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `name` | `str` | The job's name / daemon ID |
+| `executor_keys` | `str` | Executor location, e.g. `'local'`, `'systemd'`, `'api:main'` |
+| `sysargs` | `List[str]` | The command arguments being executed |
+| `status` | `str` | Job status: `'running'`, `'stopped'`, `'paused'` |
+| `result` | `SuccessTuple \| None` | The final result tuple after completion |
+| `daemon` | `Daemon` | The underlying `Daemon` object (local jobs only) |
+
+---
+
+## Managing Jobs Programmatically
+
+```python
+from meerschaum import Job
+from meerschaum.jobs import get_jobs
+
+# Create and start a looping sync job
+job = Job(
+    name='weather-sync',
+    sysargs='sync pipes -c plugin:noaa --loop',
+)
+success, message = job.start()
+print(message)
+
+# List all local jobs
+jobs = get_jobs()
+for name, job in jobs.items():
+    print(f"{name}: {job.status}")
+
+# Stop the job
+success, message = job.stop()
+print(message)
+```
+
+## Remote Jobs
+
+Run a job on a remote API instance by providing `executor_keys`:
+
+```python
+job = Job(
+    name='remote-sync',
+    sysargs='sync pipes --loop',
+    executor_keys='api:main',
+)
+job.start()
+```
+
+You can also execute a single remote action from the CLI:
+
+```bash
+mrsm sync pipes -e api:main
+```
+
+## `get_jobs()`
+
+Retrieve a dictionary of existing jobs:
+
+```python
+from meerschaum.jobs import get_jobs
+
+# Local jobs
+jobs = get_jobs()
+
+# Remote jobs on an API instance
+jobs = get_jobs(executor_keys='api:main')
+
+for name, job in jobs.items():
+    print(f"{name}: {job.status}")
+```
+
+<ParamField path="executor_keys" type="str | None" default="None">
+  If provided, return remote jobs from the given API instance. Otherwise returns local jobs.
+</ParamField>
+
+<ParamField path="include_hidden" type="bool" default="False">
+  If `True`, include jobs with the `hidden` attribute set.
+</ParamField>
+
+**Returns:** `Dict[str, Job]`
+
+---
+
+## Restart Flags
+
+Jobs created with certain flags in `sysargs` are automatically marked as restart jobs that Meerschaum will keep running:
+
+| Flag | Description |
+|---|---|
+| `--loop` | Loop the action indefinitely |
+| `--restart` | Restart after completion |
+| `--schedule <cron>` | Run on a cron schedule |
+| `--cron <expr>` | Alias for `--schedule` |
+| `-s` | Short form of `--restart` |

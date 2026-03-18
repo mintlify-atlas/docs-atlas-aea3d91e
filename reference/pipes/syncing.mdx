@@ -1,0 +1,277 @@
+---
+title: "Syncing"
+description: "How Meerschaum fetches, filters, and upserts data through the three-stage sync engine."
+---
+
+Meerschaum syncs time-series data in three ETL stages: **fetch**, **filter**, and **upsert**. Each stage is optimized for the append-heavy nature of time-series workloads.
+
+## Sync stages
+
+<Steps>
+  <Step title="Fetch (Extract & Transform)">
+    Because most new data is newer than the previous sync, the fetch stage requests rows from the source that are greater than the last sync time (minus a configurable backtrack window).
+
+    <CodeGroup>
+
+    ```sql SQL fetch query
+    WITH "definition" AS (
+      SELECT datetime, id, value
+      FROM remote_table
+    )
+    SELECT
+      "datetime",
+      "id",
+      "value"
+    FROM "definition"
+    WHERE
+      "datetime" >= '2021-06-23 14:52:00'
+    ```
+
+    ```python Python fetch
+    sync_time = pipe.get_sync_time()
+    fetch(begin=sync_time)
+    ```
+
+    </CodeGroup>
+  </Step>
+
+  <Step title="Filter (remove duplicates)">
+    After fetching the latest rows, Meerschaum diffs them against existing data in the same time window to remove rows that are already present.
+
+    <Tip>
+      To skip the filter stage and insert all fetched rows without checking for duplicates, use `--skip-check-existing` or `pipe.sync(check_existing=False)`.
+    </Tip>
+
+    <CodeGroup>
+
+    ```sql SQL filter query
+    SELECT
+      "new"."datetime",
+      "new"."id",
+      "new"."value"
+    FROM "new"
+    LEFT JOIN "old" ON
+      "new"."id" = "old"."id"
+      AND
+      "new"."datetime" = "old"."datetime"
+    WHERE
+      "old"."datetime" IS NULL
+      AND
+      "old"."id" IS NULL
+    ```
+
+    ```python Pandas filter
+    joined_df = pd.merge(
+        new_df.fillna(pd.NA),
+        old_df.fillna(pd.NA),
+        how='left',
+        on=None,
+        indicator=True,
+    )
+    mask = (joined_df['_merge'] == 'left_only')
+    delta_df = joined_df[mask]
+    ```
+
+    </CodeGroup>
+  </Step>
+
+  <Step title="Upsert (Load)">
+    New and changed rows are written to the target table via the pipe's instance connector. Rows are inserted in bulk; changed rows trigger an update.
+
+    <CodeGroup>
+
+    ```sql Inserts
+    COPY target_table (datetime, id, value)
+    FROM STDIN
+    WITH CSV
+    ```
+
+    ```sql Updates
+    UPDATE target_table AS f
+    SET value = CAST(p.value AS DOUBLE PRECISION)
+    FROM target_table AS t
+    INNER JOIN ( SELECT DISTINCT * FROM patch_table ) AS p
+      ON p.id = t.id
+      AND
+      p.datetime = p.datetime
+    WHERE
+      p.datetime = f.datetime
+      AND
+      p.id = f.id
+    ```
+
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Running a sync
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    mrsm sync pipes
+    mrsm sync pipes -c plugin:noaa -m weather
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import meerschaum as mrsm
+
+    pipe = mrsm.Pipe('plugin:noaa', 'weather', instance='sql:local')
+
+    # Infer the data source from the connector
+    success, message = pipe.sync()
+
+    # Or pass a DataFrame directly
+    import pandas as pd
+    df = pd.read_csv('new_data.csv')
+    success, message = pipe.sync(df)
+    ```
+  </Tab>
+</Tabs>
+
+### `pipe.sync()` parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `df` | DataFrame, dict, list, or str | *(infer from connector)* | Data to sync. Omit to fetch from the connector. |
+| `begin` | datetime \| int \| str \| None | `''` | Earliest datetime to fetch. |
+| `end` | datetime \| int \| None | `None` | Latest datetime to fetch. |
+| `check_existing` | bool | `True` | Diff against existing data to remove duplicates. |
+| `force` | bool | `False` | Retry on failure up to `retries` attempts. |
+| `retries` | int | `10` | Maximum retry attempts when `force=True`. |
+| `chunksize` | int | `-1` | Rows per chunk (`-1` uses system default of 900). |
+| `workers` | int | `None` | Number of concurrent sync threads (thread-safe connectors only). |
+| `blocking` | bool | `True` | Wait for sync to finish. Set `False` for async execution. |
+| `debug` | bool | `False` | Enable verbose logging. |
+
+## Backtracking
+
+Data sources may deliver rows out of order or lag behind for certain sub-streams. The backtrack interval defines an overlapping window that is re-fetched on every sync to catch delayed rows.
+
+The default backtrack window is **1440 minutes (24 hours)**.
+
+<Tabs>
+  <Tab title="edit pipes">
+    ```yaml
+    fetch:
+      backtrack_minutes: 1440
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import meerschaum as mrsm
+
+    pipe = mrsm.Pipe(
+        'plugin:noaa', 'weather',
+        instance='sql:local',
+        parameters={
+            'fetch': {
+                'backtrack_minutes': 1440,
+            },
+            'noaa': {
+                'stations': ['KGMU', 'KCEU'],
+            },
+        },
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Verification syncs
+
+A verification sync re-checks the pipe's entire interval in chunks, resyncing any chunk where data has changed or is missing. This is more expensive than a regular sync but ensures completeness.
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    mrsm verify pipes
+    # or
+    mrsm sync pipes --verify
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    pipe.verify()
+    # or
+    pipe.sync(verify=True)
+    ```
+  </Tab>
+</Tabs>
+
+Configure the chunk size and the maximum lookback window under the `verify` key:
+
+<Tabs>
+  <Tab title="edit pipes">
+    ```yaml
+    verify:
+      chunk_minutes: 1440
+      bound_days: 366
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import meerschaum as mrsm
+
+    pipe = mrsm.Pipe(
+        'plugin:noaa', 'weather',
+        instance='sql:local',
+        parameters={
+            'verify': {
+                'chunk_minutes': 1440,
+                'bound_days': 366,
+            },
+        },
+    )
+    ```
+  </Tab>
+</Tabs>
+
+| Key | Description |
+|---|---|
+| `verify.chunk_minutes` | Size of each verification chunk in minutes. |
+| `verify.bound_days` | Maximum lookback when running without explicit bounds (default 366 days). Aliases: `bound_minutes`, `bound_hours`, `bound_weeks`, `bound_years`, `bound_seconds`. |
+
+## Deduplication syncs
+
+Although the filter stage removes duplicates from incoming data, duplicate rows can still appear if the data source itself returns duplicates. The `deduplicate` action detects and removes them by deleting and resyncing affected chunks.
+
+<Note>
+  Your instance connector must implement `clear_pipe()` or `deduplicate_pipe()` to support `pipe.deduplicate()`.
+</Note>
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    mrsm deduplicate pipes
+    # or
+    mrsm sync pipes --deduplicate
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    pipe.deduplicate()
+    # or
+    pipe.sync(deduplicate=True)
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Combine `--verify` and `--deduplicate` to run both passes in a single process: `mrsm sync pipes --verify --deduplicate`.
+</Tip>
+
+## Getting the sync time
+
+Retrieve the most recent datetime value in the pipe's table with `get_sync_time()`:
+
+```python
+sync_time = pipe.get_sync_time()
+# datetime(2024, 1, 15, 12, 30, 0, tzinfo=timezone.utc)
+
+# Get the oldest value instead
+oldest = pipe.get_sync_time(newest=False)
+
+# Subtract the backtrack interval from the result
+adjusted = pipe.get_sync_time(apply_backtrack_interval=True)
+```

@@ -1,0 +1,126 @@
+---
+title: "Bootstrap a pipe"
+description: "Use the interactive bootstrap wizard to build, register, and sync your first Meerschaum pipe."
+---
+
+Pipes fetch and sync data from [connectors](/reference/connectors). The bootstrap wizard walks you through registering a pipe interactively. This example uses the `noaa` data plugin to pull real weather data.
+
+## Bootstrap with the NOAA weather plugin
+
+<Steps>
+  <Step title="Launch the Meerschaum shell">
+    ```bash
+    mrsm
+    ```
+  </Step>
+
+  <Step title="Install the noaa plugin">
+    ```bash
+    install plugin noaa
+    ```
+
+    The `noaa` plugin is a [data plugin](/reference/plugins/types-of-plugins) that provides the connector `plugin:noaa`.
+  </Step>
+
+  <Step title="Run the bootstrap wizard">
+    ```bash
+    bootstrap pipe
+    ```
+
+    Answer the prompts as follows:
+
+    | Prompt | Value |
+    |---|---|
+    | Connector | `plugin:noaa` |
+    | Metric | `weather` |
+    | Location | *(skip — press Enter)* |
+    | Weather station | `KATL` (Atlanta) |
+    | Target table name | `plugin_noaa_weather` *(default)* |
+    | Tags | *(skip)* |
+    | Edit definition? | `n` |
+    | Sync now? | `y` |
+
+    <Tip>Tags let you group pipes together for batch operations. You can add them later.</Tip>
+  </Step>
+
+  <Step title="Verify the data">
+    After the sync completes, confirm the pipe has data:
+
+    ```bash
+    show data
+    ```
+
+    You should see a preview of recent weather rows from the KATL station.
+  </Step>
+</Steps>
+
+## Useful commands after bootstrapping
+
+Once your pipe is registered, these commands help you manage it:
+
+| Command | Description |
+|---|---|
+| `show pipes` | List all pipes on this instance. |
+| `show data` | Print a preview of your pipes' contents. |
+| `sync pipes` | Pull new rows into your pipes. |
+| `sync pipes -m weather --loop -d` | Continuously sync weather pipes in the background. |
+| `show jobs` | List background jobs created with `-d`. |
+| `stop jobs` | Stop all running background jobs. |
+
+## Run a continuous background sync
+
+To keep your pipe updated automatically, run the sync in a loop as a background daemon:
+
+```bash
+sync pipes -m weather --loop -d
+```
+
+- `-m weather` — target pipes with the metric `weather`
+- `--loop` — repeat the sync on an interval
+- `-d` — detach and run as a background job
+
+Check the job status at any time with:
+
+```bash
+show jobs
+```
+
+Stop it with:
+
+```bash
+stop jobs
+```
+
+## Bootstrap from the command line (non-interactive)
+
+You can register a pipe without the interactive wizard by passing flags directly:
+
+```bash
+mrsm register pipe -c plugin:noaa -m weather -l atl -i sql:local
+```
+
+- `-c plugin:noaa` — connector
+- `-m weather` — metric
+- `-l atl` — location label
+- `-i sql:local` — instance (built-in SQLite)
+
+## What is a pipe?
+
+Every pipe is identified by three labels:
+
+- **Connector** — where the data comes from (e.g. `plugin:noaa`, `sql:mydb`)
+- **Metric** — what the data measures (e.g. `weather`, `price`)
+- **Location** — an optional sub-label to differentiate pipes with the same connector and metric
+
+These three labels map to a SQL table in the instance database. The default target table name for the example above is `plugin_noaa_weather`.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Start the web API" icon="globe" href="/get-started/start-api">
+    Manage pipes from a browser with the Meerschaum web dashboard.
+  </Card>
+  <Card title="Compose projects" icon="layer-group" href="/get-started/compose-projects">
+    Declare your pipes in a YAML file for repeatable, version-controlled pipelines.
+  </Card>
+</CardGroup>

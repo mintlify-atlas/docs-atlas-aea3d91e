@@ -1,0 +1,137 @@
+---
+title: "mrsm sync"
+description: "Fetch and sync new data into pipes from their configured sources."
+---
+
+## Synopsis
+
+```bash
+mrsm sync pipes [flags]
+```
+
+## Description
+
+The `sync` command fetches new data for registered pipes and writes it to the destination. By default it runs one lap, but can be run in a continuous loop with `--loop`.
+
+Each pipe is synced in its own worker thread. The number of workers is capped by the SQL connection pool size.
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `pipes` | Sync all matching pipes (default) |
+
+## Options
+
+<ParamField query="--loop" type="flag">
+  Sync indefinitely. Each lap waits `--min-seconds` before starting the next.
+</ParamField>
+
+<ParamField query="--min-seconds" type="int" default="1">
+  Number of seconds to sleep between laps when `--loop` is active.
+</ParamField>
+
+<ParamField query="--async, --unblock" type="flag">
+  Spin up background threads for each pipe instead of waiting for each to finish.
+</ParamField>
+
+<ParamField query="--verify" type="flag">
+  Verify pipe data integrity (calls `pipe.verify()` instead of `pipe.sync()`).
+</ParamField>
+
+<ParamField query="--deduplicate" type="flag">
+  Deduplicate pipe rows instead of a normal sync (calls `pipe.deduplicate()`).
+</ParamField>
+
+<ParamField query="--bounded" type="bool">
+  Restrict syncing to the pipe's known date bounds.
+</ParamField>
+
+<ParamField query="--chunk-interval" type="int | timedelta">
+  Override the chunk interval used when splitting large syncs.
+</ParamField>
+
+<ParamField query="--check-rowcounts-only" type="flag">
+  Only check row counts without syncing data. Implies `--skip-hooks`.
+</ParamField>
+
+<ParamField query="--skip-hooks" type="flag">
+  Skip pre- and post-sync plugin hooks.
+</ParamField>
+
+<ParamField query="--workers" type="int">
+  Number of worker threads. Defaults to the connection pool size or CPU count.
+</ParamField>
+
+<ParamField query="--timeout-seconds" type="int">
+  Per-pipe timeout in seconds. Pipes that exceed this are marked as failed.
+</ParamField>
+
+<ParamField query="--nopretty" type="flag">
+  Print results as plain text instead of styled output.
+</ParamField>
+
+<ParamField query="--debug" type="flag">
+  Print verbose debug messages.
+</ParamField>
+
+### Pipe selection flags
+
+Use any combination of these to select which pipes to sync:
+
+<ParamField query="-c, --connector-keys" type="string[]">
+  Filter by connector keys.
+</ParamField>
+
+<ParamField query="-m, --metric-keys" type="string[]">
+  Filter by metric key.
+</ParamField>
+
+<ParamField query="-l, --location-keys" type="string[]">
+  Filter by location key.
+</ParamField>
+
+<ParamField query="-t, --tags" type="string[]">
+  Filter by tags.
+</ParamField>
+
+<ParamField query="-i, --instance" type="string">
+  Meerschaum instance connector (default: configured instance).
+</ParamField>
+
+## Examples
+
+```bash
+# Sync all pipes on the default instance
+mrsm sync pipes
+
+# Sync only pipes with connector 'sql:main' and metric 'weather'
+mrsm sync pipes -c sql:main -m weather
+
+# Sync in a loop, sleeping 10 seconds between laps
+mrsm sync pipes --loop --min-seconds 10
+
+# Sync using 4 worker threads with a 60-second timeout per pipe
+mrsm sync pipes --workers 4 --timeout-seconds 60
+
+# Run as a background job on a daily schedule
+mrsm sync pipes --loop -s 'daily starting 00:00' -d
+
+# Sync asynchronously (fire-and-forget threads)
+mrsm sync pipes --unblock
+
+# Verify data integrity for all pipes
+mrsm sync pipes --verify
+```
+
+<Note>
+  `sync pipes` requires a working connection to a SQL or API instance. It fetches rows from each pipe's configured source connector and merges them into the destination.
+</Note>
+
+<Tip>
+  Chain multiple sync actions to sync from different instances in one pipeline:
+
+  ```bash
+  mrsm sync pipes -i sql:local + sync pipes -i sql:main : -s 'every 15 minutes' -d
+  ```
+</Tip>

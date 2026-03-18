@@ -1,0 +1,101 @@
+---
+title: "Connectors"
+description: "Connect to databases, APIs, and other data sources to fetch and store pipe data."
+---
+
+Meerschaum coordinates everything via connectors. A connector is how Meerschaum reaches a data source (to fetch data) or a storage backend (to persist data when [syncing pipes](/reference/pipes/syncing)).
+
+A connector is identified by two keys: its **type** and **label**, separated by a colon (`:`). For example, `sql:main` is a connector with type `sql` and label `main`.
+
+<CardGroup cols={2}>
+  <Card title="SQL connectors" icon="database" href="/reference/connectors/sql-connectors">
+    Connect to PostgreSQL, TimescaleDB, SQLite, MySQL, DuckDB, MSSQL, and more.
+  </Card>
+  <Card title="API connectors" icon="globe" href="/reference/connectors/api-connectors">
+    Connect to a Meerschaum API instance to sync and retrieve pipes remotely.
+  </Card>
+  <Card title="Instance connectors" icon="server" href="/reference/connectors/instance-connectors">
+    Build custom connectors that store pipe metadata and data.
+  </Card>
+  <Card title="Other connectors" icon="plug" href="/reference/connectors/other-connectors">
+    Valkey, MongoDB, MQTT, and plugin-based connector types.
+  </Card>
+</CardGroup>
+
+## Instances and repositories
+
+The terms **instance connector** and **repository connector** refer to specific roles a connector can play:
+
+- An **instance connector** stores pipes' metadata and data. Standard `sql` and `api` connectors can serve as instance connectors.
+- A **repository connector** is a subset of instance connectors and can only be an `api` connector. It is the source for plugin installations.
+
+<Note>
+  Not all `sql` connectors are instance connectors, but all `api` connectors are.
+</Note>
+
+Run `mrsm show connectors` to list your defined connectors and their attributes.
+
+## Creating a connector
+
+<Steps>
+  <Step title="Run the bootstrap command">
+    ```bash
+    mrsm bootstrap connector
+    ```
+    Answer the prompts to select the connector type and fill in the required attributes.
+  </Step>
+  <Step title="Verify the connector was added">
+    ```bash
+    mrsm show connectors
+    ```
+    The new connector is saved to your configuration file. You can also edit it directly with `mrsm edit config`.
+  </Step>
+</Steps>
+
+## Deleting a connector
+
+Use the `-c` flag to specify the connector keys:
+
+```bash
+mrsm delete connectors -c sql:myremoteconnector -y
+```
+
+## Environment connectors
+
+You can register a connector temporarily by setting an environment variable named `MRSM_<TYPE>_<LABEL>` to a URI string. This is useful in CI, Docker, or ephemeral environments.
+
+```bash
+# Define sql:foo from an environment variable
+export MRSM_SQL_FOO=sqlite:////tmp/foo.db
+```
+
+You can also reference other Meerschaum configuration values inside the URI:
+
+```bash
+export MRSM_SQL_FOO=postgresql://user:MRSM{meerschaum:connectors:sql:main:password}@localhost:5432/db
+```
+
+For non-SQL connector types, pass attributes as JSON:
+
+```bash
+export MRSM_DOG_SPOT='{"username": "foo", "password": "bar"}'
+```
+
+## Custom connectors
+
+Create your own connector type with the `@make_connector` decorator:
+
+```python
+from meerschaum.connectors import make_connector, Connector
+
+@make_connector
+class DogConnector(Connector):
+    IS_INSTANCE = False
+    REQUIRED_ATTRIBUTES = ['username', 'password']
+```
+
+The connector type is derived from the class name by stripping the `Connector` suffix and converting to lowercase — `DogConnector` becomes type `dog`.
+
+<Tip>
+  To make your custom connector an instance connector (capable of storing pipe data), inherit from `InstanceConnector` instead. See [instance connectors](/reference/connectors/instance-connectors) for the required interface.
+</Tip>

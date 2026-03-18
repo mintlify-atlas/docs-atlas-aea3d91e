@@ -1,0 +1,157 @@
+---
+title: "CLI Overview"
+description: "Overview of the Meerschaum command-line interface, global flags, and action syntax."
+---
+
+The `mrsm` CLI provides a verb-noun action system for managing pipes, connectors, plugins, jobs, and more. Actions can be run from a persistent shell or directly from the command line.
+
+## Running Actions
+
+<CodeGroup>
+```bash Shell mode
+$ mrsm
+[ mrsm@sql:main ] ➤ show pipes
+```
+
+```bash Direct command
+$ mrsm show pipes
+```
+
+```bash Python module
+$ python -m meerschaum show pipes
+```
+</CodeGroup>
+
+## Action Syntax
+
+All actions follow a `<verb> <noun>` pattern:
+
+```bash
+mrsm bootstrap pipes
+mrsm show pipes
+mrsm sync pipes
+mrsm delete pipes
+```
+
+## Global Flags
+
+These flags are accepted by most actions.
+
+<ParamField query="-c, --connector-keys" type="string[]">
+  Filter pipes by connector keys (e.g. `sql:main`, `plugin:noaa`).
+</ParamField>
+
+<ParamField query="-m, --metric-keys" type="string[]">
+  Filter pipes by metric key (e.g. `weather`, `sales`).
+</ParamField>
+
+<ParamField query="-l, --location-keys" type="string[]">
+  Filter pipes by location key. Use `[None]` for pipes with no location.
+</ParamField>
+
+<ParamField query="-t, --tags" type="string[]">
+  Filter pipes by tag.
+</ParamField>
+
+<ParamField query="-i, --instance, --mrsm-instance" type="string">
+  The Meerschaum instance connector to use (e.g. `sql:main`, `api:local`).
+</ParamField>
+
+<ParamField query="-r, --repository" type="string">
+  The repository connector to use for plugin operations (default: `api:mrsm`).
+</ParamField>
+
+<ParamField query="-e, --executor-keys" type="string">
+  The executor to use for background jobs (e.g. `local`, `systemd`, `api:myserver`).
+</ParamField>
+
+<ParamField query="-d, --daemon" type="flag">
+  Run the action as a background job.
+</ParamField>
+
+<ParamField query="--name" type="string">
+  Name to assign to a background job.
+</ParamField>
+
+<ParamField query="-s, --schedule" type="string">
+  Run on a schedule (e.g. `'every 10 minutes'`, `'daily starting 00:00'`).
+</ParamField>
+
+<ParamField query="-y, --yes" type="flag">
+  Automatically answer yes to confirmation prompts.
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Skip all confirmation prompts.
+</ParamField>
+
+<ParamField query="--noask" type="flag">
+  Skip interactive prompts, accepting defaults.
+</ParamField>
+
+<ParamField query="--nopretty" type="flag">
+  Print output in a machine-readable format (plain text or JSON).
+</ParamField>
+
+<ParamField query="--debug" type="flag">
+  Print verbose debugging messages.
+</ParamField>
+
+<ParamField query="--begin" type="string | int">
+  Start of the datetime range filter (ISO 8601 string or integer).
+</ParamField>
+
+<ParamField query="--end" type="string | int">
+  End of the datetime range filter (ISO 8601 string or integer).
+</ParamField>
+
+<ParamField query="--params" type="json">
+  JSON dictionary for additional filtering parameters.
+</ParamField>
+
+## Chaining Actions
+
+Join actions with `+` to run them in sequence within a single process:
+
+```bash
+mrsm sync pipes -i sql:local + sync pipes -i sql:main
+```
+
+Append `:` to apply pipeline-level flags to all chained actions:
+
+```bash
+mrsm sync pipes -c plugin:noaa + sync pipes -c sql:main : -s 'daily starting 00:00' -d
+```
+
+Useful pipeline flags:
+
+| Flag | Description |
+|------|-------------|
+| `--loop` | Run the pipeline continuously |
+| `--min-seconds N` | Sleep `N` seconds between laps (default `1`) |
+| `-s`, `--schedule` | Execute on a cron-style schedule |
+| `-d`, `--daemon` | Run the pipeline as a background job |
+| `x3` | Run the pipeline exactly 3 times |
+
+## Daemonizing Actions
+
+Add `-d` to any action to run it as a background job:
+
+```bash
+mrsm sync pipes -s 'every 3 hours' -d
+```
+
+## Available Actions
+
+| Action | Description |
+|--------|-------------|
+| [`sync`](/cli/sync) | Fetch and sync data for pipes |
+| [`register`](/cli/register) | Register pipes, plugins, users, connectors, or tokens |
+| [`bootstrap`](/cli/bootstrap) | Interactively create pipes, connectors, plugins, or jobs |
+| [`show`](/cli/show) | Display information about any resource |
+| [`edit`](/cli/edit) | Edit existing resources |
+| [`delete`](/cli/delete) | Delete resources |
+| [`install`](/cli/install) | Install plugins or Python packages |
+| [`start`](/cli/start) | Start subsystems (API server, jobs, GUI) |
+| [`stop`](/cli/stop) | Stop running jobs |
+| [`stack`](/cli/stack) | Control the Docker Compose stack |

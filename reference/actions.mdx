@@ -1,0 +1,225 @@
+---
+title: "Actions"
+description: "Overview of Meerschaum's built-in commands and how to compose them into pipelines."
+---
+
+Actions are commands for managing your Meerschaum instance and are a great way to perform bulk operations. They follow a simple **verb-noun** syntax and can be composed into pipelines, scheduled, and daemonized.
+
+<Note>
+  To see all available actions, run `help` or `show actions` inside the Meerschaum shell. Add `-h` to any command or preface with `show help` to learn more about it.
+</Note>
+
+## Syntax
+
+Actions use a consistent `verb noun` pattern (singular or plural forms are both accepted):
+
+```bash
+bootstrap pipes
+show pipes
+sync pipes
+verify pipes
+clear pipes
+drop pipes
+delete pipes
+```
+
+Run `mrsm` (or `python -m meerschaum`) to enter the interactive shell, or invoke actions directly from the command line:
+
+<CodeGroup>
+```bash Shell
+$ mrsm
+[ mrsm@sql:main ] ➤ show pipes
+```
+```bash CLI
+$ mrsm show pipes
+```
+</CodeGroup>
+
+## Built-in Actions
+
+<AccordionGroup>
+  <Accordion title="sync — Fetch and sync pipe data">
+    Fetch new data from source connectors and write it to destination pipes.
+
+    ```bash
+    # Sync all pipes
+    mrsm sync pipes
+
+    # Sync continuously
+    mrsm sync pipes --loop
+
+    # Sync with a 10-second pause between laps
+    mrsm sync pipes --loop --min-seconds 10
+    ```
+  </Accordion>
+
+  <Accordion title="show — Display information">
+    Print information about any Meerschaum resource.
+
+    ```bash
+    show pipes
+    show connectors
+    show actions
+    show jobs
+    show logs
+    show config
+    show version
+    show schedule 'daily and mon-fri'
+    ```
+  </Accordion>
+
+  <Accordion title="bootstrap — Interactive setup wizard">
+    Launch a wizard to configure new pipes or connectors.
+
+    ```bash
+    bootstrap pipes
+    bootstrap connectors
+    ```
+  </Accordion>
+
+  <Accordion title="verify — Check pipe data integrity">
+    Detect and fill gaps in pipe data.
+
+    ```bash
+    verify pipes
+    ```
+  </Accordion>
+
+  <Accordion title="edit — Modify configuration">
+    Open a resource in your default editor.
+
+    ```bash
+    edit config
+    edit config stack
+    edit pipes
+    ```
+  </Accordion>
+
+  <Accordion title="start / stop / pause — Job control">
+    Manage background jobs and the API server.
+
+    ```bash
+    start jobs
+    stop jobs my-job
+    pause jobs my-job
+    start api
+    stop api
+    ```
+  </Accordion>
+
+  <Accordion title="install / uninstall — Package management">
+    Install plugins and Python packages.
+
+    ```bash
+    install plugins noaa
+    install packages pandas
+    uninstall plugins noaa
+    ```
+  </Accordion>
+
+  <Accordion title="register / delete — Pipe lifecycle">
+    Register new pipes or remove existing ones.
+
+    ```bash
+    register pipes
+    delete pipes
+    drop pipes
+    clear pipes
+    ```
+  </Accordion>
+
+  <Accordion title="sql — Interactive SQL prompt">
+    Open an interactive SQL session against a connector.
+
+    ```bash
+    mrsm sql main
+    mrsm sql local
+    ```
+  </Accordion>
+
+  <Accordion title="stack — Docker Compose wrapper">
+    Manage the Meerschaum Docker stack (TimescaleDB + Grafana).
+
+    ```bash
+    mrsm stack up -d db grafana
+    mrsm stack down
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Chaining Actions
+
+Join multiple actions with `+` to run them in a single process — similar to `&&` in bash:
+
+```bash
+sync pipes -i sql:local + \
+sync pipes -i sql:main
+```
+
+Flags added after `:` apply globally to the entire pipeline:
+
+```bash
+show version + show arguments : --loop
+
+sync pipes -c plugin:noaa + \
+sync pipes -c sql:main : -s 'daily starting 00:00' -d
+```
+
+<Tip>
+  Escape `:` with `::` when you need a literal colon in an argument — for example, `mrsm echo ::` outputs `:`.
+</Tip>
+
+### Pipeline flags
+
+| Flag | Description |
+|------|-------------|
+| `--loop` | Run the pipeline commands continuously. |
+| `--min-seconds N` | Sleep N seconds between laps (default `1`). |
+| `-s`, `--schedule` | Execute the pipeline on a [schedule](/reference/background-jobs). |
+| `-d`, `--daemon` | Create a background job for the pipeline. |
+| `xN` or just `N` | Execute the pipeline N times. |
+
+Repeat a command a fixed number of times:
+
+```bash
+mrsm show version : x3
+```
+
+## Daemonizing Actions
+
+Add `-d` to any action to run it as a [background job](/reference/background-jobs):
+
+```bash
+mrsm sync pipes -s 'every 3 hours' -d
+```
+
+This works especially well when chaining actions into a pipeline job:
+
+```bash
+sync pipes -i sql:local + \
+sync pipes -c sql:local : -s 'daily starting 10:00' -d
+```
+
+## Shell Commands as Actions
+
+Any shell command can be executed as a Meerschaum action. This is useful for scheduling scripts alongside pipe syncs:
+
+```bash
+mrsm /path/to/script.sh -s 'every 5 minutes' -d
+```
+
+## Custom Actions
+
+You can register your own Python functions as Meerschaum actions using the `@make_action` decorator in a plugin:
+
+```python
+from meerschaum.plugins import make_action
+
+@make_action
+def my_action(action=None, **kwargs):
+    """Run my custom action."""
+    print("Hello from my_action!")
+    return True, "Success"
+```
+
+Once the plugin is loaded, `mrsm my action` becomes a valid command.

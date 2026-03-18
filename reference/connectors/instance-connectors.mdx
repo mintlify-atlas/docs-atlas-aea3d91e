@@ -1,0 +1,365 @@
+---
+title: "Instance connectors"
+description: "Build custom connectors that store pipe metadata and data by implementing the InstanceConnector interface."
+---
+
+An **instance connector** stores pipes' metadata (registration) and data (synced rows). The built-in `SQLConnector` and `APIConnector` are both instance connectors. You can create your own by inheriting from `InstanceConnector` and implementing its interface.
+
+For a complete reference implementation, see the [`MongoDBConnector`](https://github.com/bmeares/mongodb-connector/blob/main/plugins/mongodb-connector/_pipes.py).
+
+## Declaring an instance connector
+
+```python
+from meerschaum.connectors import InstanceConnector, make_connector
+import meerschaum as mrsm
+from typing import Any, Optional, List, Tuple, Union
+from datetime import datetime
+
+@make_connector
+class FooConnector(InstanceConnector):
+    IS_INSTANCE = True
+    REQUIRED_ATTRIBUTES = ['host', 'port']
+
+    def register_pipe(self, pipe: mrsm.Pipe, **kwargs: Any) -> mrsm.SuccessTuple:
+        ...
+```
+
+The connector type is derived from the class name — `FooConnector` becomes type `foo`. Setting `IS_INSTANCE = True` registers it as an instance connector so pipes can use it as their storage backend.
+
+## Working with the `params` filter
+
+Several methods accept a `params` argument for filtering rows. The keys are column names and the values are filter expressions:
+
+- A plain value: match rows equal to that value.
+- A list of values: match rows where the column is in the list (`IN`).
+- A value prefixed with `_`: exclude rows matching that value (`NOT IN`).
+
+The easiest way to apply `params` is with `query_df()`:
+
+```python
+from meerschaum.utils.dataframe import query_df, parse_df_datetimes
+
+df = parse_df_datetimes([
+    {'ts': '2024-01-01 00:00:00', 'color': 'red'},
+    {'ts': '2024-02-02 02:00:00', 'color': 'blue'},
+    {'ts': '2024-03-03 03:00:00', 'color': 'green'},
+])
+
+print(query_df(df, {'color': 'red'}))
+#           ts color
+# 0 2024-01-01   red
+
+print(query_df(df, begin='2024-02-01', datetime_column='ts'))
+#                    ts  color
+# 1 2024-02-02 02:00:00   blue
+# 2 2024-03-03 03:00:00  green
+```
+
+For advanced cases, adapt `params` to your connector's native query syntax as shown in [`MongoDBConnector.build_query()`](https://github.com/bmeares/mongodb-connector/blob/main/plugins/mongodb-connector/_mongo.py#L16).
+
+## Required methods
+
+### `register_pipe()`
+
+Insert the pipe's attributes into a `pipes` table. The attributes row must contain:
+
+- `connector_keys` (`str`)
+- `metric_key` (`str`)
+- `location_key` (`str | None`) — you may store `"None"` as a string in place of `None`
+- `parameters` (`dict[str, Any]`)
+
+```python
+def register_pipe(
+    self,
+    pipe: mrsm.Pipe,
+    debug: bool = False,
+    **kwargs: Any,
+) -> mrsm.SuccessTuple:
+    attributes = {
+        'connector_keys': str(pipe.connector_keys),
+        'metric_key': str(pipe.metric_key),
+        'location_key': str(pipe.location_key),
+        'parameters': pipe._attributes.get('parameters', {}),
+    }
+    # Insert `attributes` as a row in your pipes table.
+    return True, "Success"
+```
+
+### `get_pipe_attributes()`
+
+Return the full attributes dictionary for a pipe. Attributes must be JSON-serializable.
+
+```python
+def get_pipe_attributes(
+    self,
+    pipe: mrsm.Pipe,
+    debug: bool = False,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    query = {
+        'connector_keys': str(pipe.connector_keys),
+        'metric_key': str(pipe.metric_key),
+        'location_key': str(pipe.location_key),
+    }
+    # Return the matching row as a dict, or {} if not found.
+    return {}
+```
+
+### `get_pipe_id()`
+
+Return the ID for the pipe, or `None` if not registered.
+
+```python
+def get_pipe_id(
+    self,
+    pipe: mrsm.Pipe,
+    debug: bool = False,
+    **kwargs: Any,
+) -> Union[str, int, None]:
+    # Return the ID mapped to (connector_keys, metric_key, location_key).
+    return None
+```
+
+### `edit_pipe()`
+
+Update the `parameters` dictionary for a registered pipe.
+
+```python
+def edit_pipe(
+    self,
+    pipe: mrsm.Pipe,
+    debug: bool = False,
+    **kwargs: Any,
+) -> mrsm.SuccessTuple:
+    pipe_parameters = pipe._attributes.get('parameters', {})
+    # Update the row identified by pipe's keys with the new parameters.
+    return True, "Success"
+```
+
+### `delete_pipe()`
+
+Remove a pipe's registration from the `pipes` table.
+
+```python
+def delete_pipe(
+    self,
+    pipe: mrsm.Pipe,
+    debug: bool = False,
+    **kwargs: Any,
+) -> mrsm.SuccessTuple:
+    pipe_id = self.get_pipe_id(pipe, debug=debug)
+    if pipe_id is None:
+        return False, f"{pipe} is not registered."
+    # Delete the row with this pipe_id.
+    return True, "Success"
+```
+
+### `fetch_pipes_keys()`
+
+Return a list of `(connector_keys, metric_key, location_key)` tuples for all pipes matching the provided filters.
+
+Filters are joined by `AND`; values within each filter are joined by `OR`. Use `separate_negation_values()` to split positive and negated values:
+
+```python
+def fetch_pipes_keys(
+    self,
+    connector_keys: list[str] | None = None,
+    metric_keys: list[str] | None = None,
+    location_keys: list[str] | None = None,
+    tags: list[str] | None = None,
+    debug: bool = False,
+    **kwargs: Any,
+) -> List[Tuple[str, str, str]]:
+    from meerschaum.utils.misc import separate_negation_values
+
+    in_ck, nin_ck = separate_negation_values([str(v) for v in (connector_keys or [])])
+    in_mk, nin_mk = separate_negation_values([str(v) for v in (metric_keys or [])])
+    in_lk, nin_lk = separate_negation_values([str(v) for v in (location_keys or [])])
+    in_tags, nin_tags = separate_negation_values([str(v) for v in (tags or [])])
+
+    # Build and execute a query equivalent to:
+    #
+    # SELECT connector_keys, metric_key, location_key
+    # FROM pipes
+    # WHERE connector_keys IN ({in_ck})
+    #   AND connector_keys NOT IN ({nin_ck})
+    #   AND metric_key IN ({in_mk})
+    #   AND metric_key NOT IN ({nin_mk})
+    #   AND location_key IN ({in_lk})
+    #   AND location_key NOT IN ({nin_lk})
+    #   AND (parameters->'tags') ?| ARRAY[{in_tags}]
+    #   AND NOT (parameters->'tags') ?| ARRAY[{nin_tags}]
+    return []
+```
+
+### `pipe_exists()`
+
+Return `True` if the pipe's target table exists and contains data.
+
+```python
+def pipe_exists(
+    self,
+    pipe: mrsm.Pipe,
+    debug: bool = False,
+    **kwargs: Any,
+) -> bool:
+    table_name = pipe.target
+    # Check whether `table_name` exists.
+    return False
+```
+
+### `drop_pipe()`
+
+Drop the pipe's target table.
+
+```python
+def drop_pipe(
+    self,
+    pipe: mrsm.Pipe,
+    debug: bool = False,
+    **kwargs: Any,
+) -> mrsm.SuccessTuple:
+    table_name = pipe.target
+    # Drop `table_name`.
+    return True, "Success"
+```
+
+### `sync_pipe()`
+
+Upsert new data into the pipe's target table. The values of `pipe.columns` are the index columns to use for upserts.
+
+Use `pipe.filter_existing()` to separate inserts from updates if your backend lacks native upsert support:
+
+```python
+def sync_pipe(
+    self,
+    pipe: mrsm.Pipe,
+    df: 'pd.DataFrame',
+    debug: bool = False,
+    **kwargs: Any,
+) -> mrsm.SuccessTuple:
+    # `pipe.filter_existing()` separates new rows from existing rows.
+    unseen_df, update_df, delta_df = pipe.filter_existing(df, debug=debug)
+    # Insert `unseen_df` and update rows in `update_df`.
+    return True, "Success"
+```
+
+<Tip>
+  After the first sync, consider creating indices on `pipe.columns` values for better query performance on subsequent syncs.
+</Tip>
+
+### `clear_pipe()`
+
+Delete rows within bounded or unbounded time intervals without dropping the table:
+
+```python
+def clear_pipe(
+    self,
+    pipe: mrsm.Pipe,
+    begin: Union[datetime, int, None] = None,
+    end: Union[datetime, int, None] = None,
+    params: Optional[dict[str, Any]] = None,
+    debug: bool = False,
+) -> mrsm.SuccessTuple:
+    # Delete rows where datetime_column >= begin and < end,
+    # filtered by params.
+    return True, "Success"
+```
+
+### `get_pipe_data()`
+
+Return the pipe's data as a DataFrame, filtered by time bounds and `params`.
+
+Use `parse_df_datetimes()` to cast ISO datetime strings automatically:
+
+```python
+def get_pipe_data(
+    self,
+    pipe: mrsm.Pipe,
+    select_columns: list[str] | None = None,
+    omit_columns: list[str] | None = None,
+    begin: Union[datetime, int, None] = None,
+    end: Union[datetime, int, None] = None,
+    params: Optional[dict[str, Any]] = None,
+    debug: bool = False,
+    **kwargs: Any,
+) -> Optional['pd.DataFrame']:
+    from meerschaum.utils.dataframe import parse_df_datetimes
+    table_name = pipe.target
+    dt_col = pipe.columns.get('datetime', None)
+
+    # Query `table_name` with filters:
+    # WHERE "{dt_col}" >= '{begin}' AND "{dt_col}" < '{end}'
+    # Apply params filter and column selection.
+    rows = []
+    return parse_df_datetimes(rows)
+```
+
+### `get_sync_time()`
+
+Return the maximum (or minimum) datetime value in the pipe's target table:
+
+```python
+def get_sync_time(
+    self,
+    pipe: mrsm.Pipe,
+    params: Optional[dict[str, Any]] = None,
+    newest: bool = True,
+    debug: bool = False,
+    **kwargs: Any,
+) -> Union[datetime, int, None]:
+    # Return MAX(dt_col) if newest=True, MIN(dt_col) otherwise.
+    # Apply params filter.
+    return None
+```
+
+### `get_pipe_columns_types()`
+
+Return a dictionary mapping column names to their data types. This enables automatic dtype enforcement:
+
+```python
+def get_pipe_columns_types(
+    self,
+    pipe: mrsm.Pipe,
+    debug: bool = False,
+    **kwargs: Any,
+) -> dict[str, str]:
+    table_name = pipe.target
+    # Return e.g. {'timestamp': 'TIMESTAMP', 'value': 'FLOAT'}
+    # or Pandas dtypes: {'timestamp': 'datetime64[ns]', 'value': 'float64'}
+    return {}
+```
+
+### `get_pipe_rowcount()`
+
+Return the number of rows in the pipe's table within the given bounds:
+
+```python
+def get_pipe_rowcount(
+    self,
+    pipe: mrsm.Pipe,
+    begin: Union[datetime, int, None] = None,
+    end: Union[datetime, int, None] = None,
+    params: Optional[dict[str, Any]] = None,
+    remote: bool = False,
+    debug: bool = False,
+    **kwargs: Any,
+) -> int:
+    table_name = pipe.target
+    # COUNT(*) from `table_name` with begin/end/params applied.
+    return 0
+```
+
+## Optional methods
+
+These methods are not required but improve performance or add functionality:
+
+| Method | Description |
+|--------|-------------|
+| `sync_pipe_inplace()` | Bypass DataFrame loading when source and instance connectors are the same. |
+| `create_pipe_indices()` | Create indices on the pipe's target table after syncing. |
+| `drop_pipe_indices()` | Drop indices from the pipe's target table. |
+| `get_pipe_columns_indices()` | Return a mapping of columns to their index metadata. |
+| `deduplicate_pipe()` | Remove duplicate rows; defaults to using `get_pipe_data()` + `clear_pipe()`. |
+
+See the [`SQLConnector` source](https://docs.meerschaum.io/meerschaum/connectors.html#SQLConnector) for reference implementations of each optional method.

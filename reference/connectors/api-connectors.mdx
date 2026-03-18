@@ -1,0 +1,136 @@
+---
+title: "API connectors"
+description: "Connect to a Meerschaum API instance to sync and manage pipes over HTTP."
+---
+
+The `APIConnector` connects to a running [Meerschaum Web API](/reference/api-instance). Because the API instance exposes the full pipe interface, every `api` connector is also an instance connector — pipes can be synced to and from it directly.
+
+## Configuration
+
+<Tabs>
+  <Tab title="Attributes">
+    ```yaml
+    meerschaum:
+      connectors:
+        api:
+          myinstance:
+            protocol: http
+            host: localhost
+            port: 8000
+            username: myuser
+            password: mypassword
+    ```
+  </Tab>
+  <Tab title="URI">
+    ```yaml
+    meerschaum:
+      connectors:
+        api:
+          myinstance:
+            uri: http://myuser:mypassword@localhost:8000
+    ```
+  </Tab>
+  <Tab title="HTTPS">
+    ```yaml
+    meerschaum:
+      connectors:
+        api:
+          prod:
+            protocol: https
+            host: api.example.com
+            username: myuser
+            password: mypassword
+    ```
+  </Tab>
+</Tabs>
+
+### Configuration attributes
+
+| Attribute | Required | Description |
+|-----------|----------|-------------|
+| `host` | Yes | Hostname or IP address of the API server. |
+| `protocol` | No | `http` or `https`. Defaults to `http`. |
+| `port` | No | Port number. Omit if using the default for the protocol. |
+| `username` | No | Username for password-based login. |
+| `password` | No | Password for password-based login. |
+| `client_id` | No | Client ID for OAuth2 client credentials flow. |
+| `client_secret` | No | Client secret for OAuth2 client credentials flow. |
+| `api_key` | No | Static API key for key-based authentication. |
+
+<Note>
+  If no credentials are provided, Meerschaum falls back to password-based login prompts. The login scheme is selected automatically based on which credential attributes are set.
+</Note>
+
+## Authentication schemes
+
+The `APIConnector` supports three login schemes, selected automatically by which attributes are configured:
+
+| Scheme | Required attributes | Description |
+|--------|--------------------|--------------|
+| `password` | `username`, `password` | Standard username and password login. |
+| `client_credentials` | `client_id`, `client_secret` | OAuth2 client credentials flow. |
+| `api_key` | `api_key` | Static API key passed as a bearer token. |
+
+## Using an API connector in Python
+
+```python
+import meerschaum as mrsm
+
+# Connect using a URI
+conn = mrsm.get_connector('api:myinstance', uri='http://user:pass@localhost:8000')
+
+# Or retrieve a pre-configured connector
+conn = mrsm.get_connector('api:myinstance')
+
+# Use as an instance connector when creating a pipe
+pipe = mrsm.Pipe('sql:main', 'my_metric', instance=conn)
+pipe.sync([{'datetime': '2024-01-01', 'value': 1.0}])
+```
+
+## Making HTTP requests
+
+The `APIConnector` exposes `get`, `post`, `put`, `patch`, and `delete` methods for making requests to the underlying API:
+
+```python
+import meerschaum as mrsm
+
+conn = mrsm.get_connector('api:myinstance')
+
+# GET /mrsm/version
+response = conn.get('/mrsm/version')
+print(response.json())
+```
+
+<Tip>
+  The token is managed automatically. The connector will log in and refresh the token when it expires — you do not need to handle authentication manually.
+</Tip>
+
+## Starting a local API server
+
+To start a Meerschaum API server that an `api` connector can target:
+
+```bash
+mrsm start api
+```
+
+This starts a server on port `8000` by default, backed by the configured `api_instance` (usually `sql:main`). See [start API](/get-started/start-api) for details on configuration options.
+
+## API connector as a repository
+
+An `api` connector can also act as a **repository connector** — the source from which plugins are published and installed. The default public repository is `api:mrsm`.
+
+```bash
+# Install a plugin from a custom API repository
+mrsm install plugin myplugin -r api:myrepo
+
+# Register a plugin to a custom repository
+mrsm register plugin myplugin -r api:myrepo
+```
+
+## Chaining API connectors
+
+API connectors can be chained: a Meerschaum API instance can itself use another `api` connector as its backing instance. Configure the `api_instance` key in the server's config to point to another `api` connector.
+
+<Warning>
+  Chaining API connectors can complicate authentication and performance. Use it only when you need a proxy or multi-tier architecture.
+</Warning>

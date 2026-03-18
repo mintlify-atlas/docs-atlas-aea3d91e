@@ -1,0 +1,148 @@
+---
+title: "get_connector()"
+description: "Retrieve or create a Meerschaum connector instance by type and label."
+---
+
+`get_connector()` returns a cached connector or creates a new one with the provided parameters. Connectors are identified by `type:label` (e.g. `'sql:main'`, `'api:cloud'`).
+
+```python
+import meerschaum as mrsm
+
+conn = mrsm.get_connector()
+```
+
+## Signature
+
+```python
+meerschaum.get_connector(
+    type: Optional[str] = None,
+    label: Optional[str] = None,
+    refresh: bool = False,
+    debug: bool = False,
+    **kw: Any,
+) -> Connector
+```
+
+## Parameters
+
+<ParamField path="type" type="str | None" default="None">
+  The connector type: `'sql'`, `'api'`, `'valkey'`, or any registered custom type.
+
+  You may also pass the full `type:label` string as the first argument:
+
+  ```python
+  conn = mrsm.get_connector('sql:local')
+  ```
+</ParamField>
+
+<ParamField path="label" type="str | None" default="None">
+  The connector label, e.g. `'main'`, `'local'`. Defaults to `'main'`.
+</ParamField>
+
+<ParamField path="refresh" type="bool" default="False">
+  If `True`, reconstruct the connector object even if one already exists in the cache.
+</ParamField>
+
+<ParamField path="**kw" type="Any">
+  Additional keyword arguments are passed to the connector's constructor. If the connector already exists and new arguments differ from the cached values, `refresh` is automatically set to `True`.
+</ParamField>
+
+## Return Value
+
+A connector object (e.g. `SQLConnector`, `APIConnector`, or a custom connector). Returns `None` if the connector type is not recognized.
+
+## Examples
+
+<CodeGroup>
+  ```python Default Connector
+  import meerschaum as mrsm
+
+  # Returns the default instance connector (typically sql:main)
+  conn = mrsm.get_connector()
+  print(conn)  # sql:main
+  ```
+
+  ```python By Type and Label
+  import meerschaum as mrsm
+
+  conn = mrsm.get_connector('sql', 'local')
+  # or equivalently:
+  conn = mrsm.get_connector('sql:local')
+  ```
+
+  ```python Create a New SQLite Connector
+  import meerschaum as mrsm
+
+  conn = mrsm.get_connector(
+      type='sql',
+      label='newlabel',
+      flavor='sqlite',
+      database='/path/to/database.db',
+  )
+  ```
+
+  ```python Create a PostgreSQL Connector
+  import meerschaum as mrsm
+
+  conn = mrsm.get_connector(
+      type='sql',
+      label='remote',
+      flavor='postgresql',
+      host='localhost',
+      port=5432,
+      database='mydb',
+      username='user',
+      password='pass',
+  )
+  # or via URI:
+  conn = mrsm.get_connector(
+      type='sql',
+      label='remote',
+      uri='postgresql://user:pass@localhost:5432/mydb',
+  )
+  ```
+
+  ```python API Connector
+  import meerschaum as mrsm
+
+  conn = mrsm.get_connector('api', 'main')
+  print(conn)  # api:main
+  ```
+</CodeGroup>
+
+## Environment Variable Connectors
+
+Connectors can be defined via environment variables in the format `MRSM_{TYPE}_{LABEL}` (uppercase):
+
+```bash
+# Define a SQL connector 'sql:mydb'
+export MRSM_SQL_MYDB='postgresql://user:pass@localhost:5432/mydb'
+
+# Define an API connector 'api:cloud'
+export MRSM_API_CLOUD='https://user:pass@mrsm.example.com'
+```
+
+Environment connectors are automatically picked up by `get_connector()`.
+
+## Connector Configuration
+
+Connectors can also be configured in the Meerschaum config file (edit with `mrsm edit config`):
+
+```yaml
+meerschaum:
+  connectors:
+    sql:
+      mydb:
+        flavor: postgresql
+        host: localhost
+        port: 5432
+        database: mydb
+        username: user
+        password: pass
+    api:
+      cloud:
+        protocol: https
+        host: mrsm.example.com
+        username: user
+        password: pass
+```

@@ -1,0 +1,160 @@
+---
+title: "mrsm bootstrap"
+description: "Launch interactive wizards to create pipes, connectors, plugins, or jobs."
+---
+
+## Synopsis
+
+```bash
+mrsm bootstrap <subcommand> [arguments] [flags]
+```
+
+## Description
+
+`bootstrap` launches step-by-step interactive wizards. It is the easiest way to create a new pipe or connector — especially for first-time users.
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `pipes` | Interactively create a new pipe |
+| `connectors` | Interactively create a new connector |
+| `plugins` | Scaffold a new plugin |
+| `jobs` | Interactively create a new background job |
+
+---
+
+## `bootstrap pipes`
+
+Guide the user through selecting or creating a connector, entering a metric key, and optionally a location key, then register the pipe.
+
+```bash
+mrsm bootstrap pipes
+```
+
+If keys are already known, skip the wizard:
+
+```bash
+mrsm bootstrap pipes -c sql:main -m weather
+```
+
+<ParamField query="-c, --connector-keys" type="string[]">
+  Pre-fill the connector key to skip that wizard step.
+</ParamField>
+
+<ParamField query="-m, --metric-keys" type="string[]">
+  Pre-fill the metric key.
+</ParamField>
+
+<ParamField query="-l, --location-keys" type="string[]">
+  Pre-fill the location key.
+</ParamField>
+
+<ParamField query="-i, --instance" type="string">
+  Meerschaum instance to register the pipe on.
+</ParamField>
+
+<ParamField query="-y, --yes" type="flag">
+  Answer yes to all confirmation prompts.
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Delete and recreate existing pipes without prompting.
+</ParamField>
+
+<Steps>
+  <Step title="Choose a connector">
+    Select an existing connector or create a new one.
+  </Step>
+  <Step title="Enter a metric">
+    Type the metric label (e.g. `weather`, `sales`).
+  </Step>
+  <Step title="Enter a location (optional)">
+    Optionally scope the pipe to a location (e.g. `nyc`, `store-42`).
+  </Step>
+  <Step title="Configure and register">
+    The wizard calls `pipe.bootstrap()` to finalize columns, parameters, and data types.
+  </Step>
+</Steps>
+
+---
+
+## `bootstrap connectors`
+
+Interactively configure a new connector of any supported type.
+
+```bash
+mrsm bootstrap connectors
+```
+
+The wizard prompts for:
+1. Connector type (`sql`, `api`, `mqtt`, etc.)
+2. A label for the new connector
+3. Flavor-specific attributes (host, port, database, username, password, etc.)
+
+<ParamField query="-y, --yes" type="flag">
+  Accept all defaults without prompting.
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Overwrite an existing connector.
+</ParamField>
+
+```bash
+mrsm bootstrap connectors
+# Prompts for type, label, and connection details
+# Saves to the meerschaum configuration file
+```
+
+<Note>
+  For non-interactive connector creation, use `register connectors` with `--params` instead.
+</Note>
+
+---
+
+## `bootstrap plugins`
+
+Scaffold a new plugin with the correct directory structure and starter code.
+
+```bash
+mrsm bootstrap plugins <plugin_name>
+```
+
+<ParamField query="plugin_name" type="string">
+  Name of the plugin to create. If omitted, the wizard prompts for it.
+</ParamField>
+
+```bash
+mrsm bootstrap plugins myplugin
+```
+
+---
+
+## `bootstrap jobs`
+
+Interactively create a background job. If the job name already exists, this opens the edit wizard.
+
+```bash
+mrsm bootstrap jobs <job_name>
+```
+
+<ParamField query="job_name" type="string">
+  Name for the new job. If omitted, the wizard prompts for it.
+</ParamField>
+
+<ParamField query="-e, --executor-keys" type="string">
+  Executor for the job (`local`, `systemd`, `api:myserver`).
+</ParamField>
+
+```bash
+mrsm bootstrap jobs my-sync-job
+# Prompts for the action command, then starts the job
+```
+
+<Tip>
+  Inside the job editor, use `+` to chain actions and `:` to add pipeline-level flags:
+
+  ```
+  sync pipes -i sql:local + sync pipes -i sql:main : --loop --min-seconds 30
+  ```
+</Tip>

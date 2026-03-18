@@ -1,0 +1,174 @@
+---
+title: "mrsm edit"
+description: "Edit existing pipes, configuration files, users, plugins, jobs, and tokens."
+---
+
+## Synopsis
+
+```bash
+mrsm edit <subcommand> [arguments] [flags]
+```
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `config` | Edit Meerschaum configuration files |
+| `pipes` | Edit pipe parameters interactively |
+| `definition` | Edit a pipe's fetch definition (e.g. SQL query) |
+| `users` | Edit user account details |
+| `plugins` | Open a plugin's source file in an editor |
+| `jobs` | Modify an existing background job |
+| `tokens` | Edit token labels, scopes, or expiration |
+
+---
+
+## `edit config`
+
+Open a Meerschaum configuration file in the system editor (`$EDITOR`).
+
+```bash
+mrsm edit config [<key>]
+```
+
+Defaults to editing the `meerschaum` config (connectors, instance, etc.).
+
+<ParamField query="key" type="string">
+  Configuration key to edit (e.g. `system`, `meerschaum`, `myconfig`).
+</ParamField>
+
+```bash
+# Edit the main meerschaum config
+mrsm edit config
+
+# Edit system config
+mrsm edit config system
+
+# Create or edit a custom config file
+mrsm edit config myconfig
+```
+
+---
+
+## `edit pipes`
+
+Open and edit pipe parameters. Without `--params`, opens an interactive editor.
+
+```bash
+mrsm edit pipes [definition] [pipe filters] [--params <json>]
+```
+
+<ParamField query="definition" type="subcommand">
+  If passed as the first argument, edit the pipe's fetch definition (e.g. the `.sql` file for a SQL pipe). Alias: `edit definition`.
+</ParamField>
+
+<ParamField query="--params" type="json">
+  JSON dictionary to patch into the pipe's parameters non-interactively.
+</ParamField>
+
+<ParamField query="-y, --yes" type="flag">
+  Skip confirmation prompts before opening each file.
+</ParamField>
+
+```bash
+# Edit all pipes interactively
+mrsm edit pipes
+
+# Edit only a specific pipe
+mrsm edit pipes -c sql:main -m weather
+
+# Edit the SQL definition for a pipe
+mrsm edit pipes definition -c sql:main -m mymetric
+
+# Patch parameters non-interactively
+mrsm edit pipes -c sql:main -m weather --params '{"fetch": {"backtrack_minutes": 1440}}'
+```
+
+---
+
+## `edit definition`
+
+Alias for `edit pipes definition`. Opens the fetch definition file for matched pipes.
+
+```bash
+mrsm edit definition -c sql:main -m mymetric
+```
+
+---
+
+## `edit users`
+
+Interactively update a user's password, type, email, scopes, or attributes.
+
+```bash
+mrsm edit users <username> [-i <instance>]
+```
+
+<ParamField query="username" type="string" required>
+  Username of the account to edit.
+</ParamField>
+
+<ParamField query="-i, --instance" type="string">
+  Instance connector where the user is registered.
+</ParamField>
+
+```bash
+mrsm edit users alice -i api:prod
+```
+
+---
+
+## `edit plugins`
+
+Open a plugin's source file in the system editor.
+
+```bash
+mrsm edit plugins <plugin_name>
+```
+
+If the plugin is not installed, offers to run `bootstrap plugins` to create it.
+
+```bash
+mrsm edit plugins myplugin
+```
+
+---
+
+## `edit jobs`
+
+Modify an existing job's action arguments. The job is deleted and recreated with the new arguments.
+
+```bash
+mrsm edit jobs <job_name> [-e <executor>]
+```
+
+<ParamField query="job_name" type="string" required>
+  Name of the job to edit.
+</ParamField>
+
+<ParamField query="-e, --executor-keys" type="string">
+  Executor key for the job.
+</ParamField>
+
+```bash
+mrsm edit jobs my-sync-job
+```
+
+<Note>
+  Editing a job stops it, applies the new arguments, and restarts it automatically.
+</Note>
+
+---
+
+## `edit tokens`
+
+Update a token's label, expiration, scopes, or validity.
+
+```bash
+mrsm edit tokens <label_or_id> [-i <instance>]
+```
+
+```bash
+mrsm edit tokens weather-sensor
+mrsm edit tokens 550e8400-e29b-41d4-a716-446655440000
+```

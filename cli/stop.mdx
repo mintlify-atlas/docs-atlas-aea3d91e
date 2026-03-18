@@ -1,0 +1,85 @@
+---
+title: "mrsm stop"
+description: "Stop running or paused background jobs."
+---
+
+## Synopsis
+
+```bash
+mrsm stop jobs [<job_name>...] [flags]
+```
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `jobs` | Stop running or paused background jobs |
+
+---
+
+## `stop jobs`
+
+Stop one or more background jobs that were started with `start jobs` or the `-d` / `--daemon` flag.
+
+```bash
+mrsm stop jobs [<job_name>...] [-e <executor>] [flags]
+```
+
+<ParamField query="job_name" type="string[]">
+  Name(s) of the jobs to stop. If omitted, prompts to stop all running/paused jobs.
+</ParamField>
+
+<ParamField query="-e, --executor-keys" type="string">
+  Executor key for the jobs.
+</ParamField>
+
+<ParamField query="--timeout-seconds" type="int">
+  Maximum seconds to wait for a job to stop gracefully before forcefully terminating.
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Stop without displaying a confirmation prompt.
+</ParamField>
+
+<ParamField query="-y, --yes" type="flag">
+  Automatically answer yes to confirmation prompts.
+</ParamField>
+
+<ParamField query="--noask" type="flag">
+  Skip interactive prompts.
+</ParamField>
+
+<ParamField query="--nopretty" type="flag">
+  Suppress styled output.
+</ParamField>
+
+## Examples
+
+```bash
+# Stop a specific job
+mrsm stop jobs my-sync-job
+
+# Stop multiple jobs
+mrsm stop jobs job-a job-b
+
+# Stop all running jobs (prompts for confirmation)
+mrsm stop jobs
+
+# Stop without prompting
+mrsm stop jobs my-sync-job --force
+
+# Stop with a 30-second graceful timeout
+mrsm stop jobs my-sync-job --timeout-seconds 30
+```
+
+<Note>
+  Already-stopped jobs are skipped with a warning. To see which jobs are running, use `show jobs`.
+</Note>
+
+<Tip>
+  To both stop and remove a job, use `delete jobs` instead:
+
+  ```bash
+  mrsm delete jobs my-sync-job --force
+  ```
+</Tip>

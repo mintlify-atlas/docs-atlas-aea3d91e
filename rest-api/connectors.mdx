@@ -1,0 +1,88 @@
+---
+title: "Connector Endpoints"
+description: "REST API endpoints for reading connector configuration from a Meerschaum instance."
+---
+
+Connector endpoints are prefixed with `/mrsm/connectors`.
+
+These endpoints expose the list of connectors configured on the API server. They are read-only; connector creation is handled by the CLI (`bootstrap connectors` or `register connectors`).
+
+## List All Connectors
+
+<ResponseField name="GET /mrsm/connectors" type="object">
+  Return a dictionary of all configured connectors, grouped by type.
+</ResponseField>
+
+**Required scope:** `connectors:read`
+
+<CodeGroup>
+```bash curl
+curl http://localhost:8000/mrsm/connectors \
+  -H "Authorization: Bearer <token>"
+```
+
+```python Python
+import requests
+
+resp = requests.get(
+    "http://localhost:8000/mrsm/connectors",
+    headers={"Authorization": "Bearer <token>"},
+)
+print(resp.json())
+```
+</CodeGroup>
+
+**Query parameters:**
+
+<ParamField query="type" type="string">
+  Filter by connector type (e.g. `sql`, `api`, `mqtt`). When provided, returns a flat list of labels instead of a nested dictionary.
+</ParamField>
+
+**Example response (all connectors):**
+
+```json
+{
+  "sql": ["main", "local", "prod"],
+  "api": ["mrsm", "staging"]
+}
+```
+
+**Example response (filtered by type):**
+
+```json
+["main", "local", "prod"]
+```
+
+---
+
+## List Connectors by Type
+
+<ResponseField name="GET /mrsm/connectors/{type}" type="array">
+  Convenience endpoint — equivalent to `GET /mrsm/connectors?type={type}`.
+</ResponseField>
+
+**Required scope:** `connectors:read`
+
+```bash
+curl http://localhost:8000/mrsm/connectors/sql \
+  -H "Authorization: Bearer <token>"
+```
+
+**Example response:**
+
+```json
+["main", "local", "prod"]
+```
+
+<Note>
+  These endpoints return only labels of configured connectors, not connection credentials. Sensitive information such as passwords is never exposed.
+</Note>
+
+<Tip>
+  To use a specific connector on a remote API instance, pass its keys via the `instance_keys` query parameter on pipe endpoints:
+
+  ```bash
+  curl "http://localhost:8000/mrsm/pipes?instance_keys=sql:prod" \
+    -H "Authorization: Bearer <token>"
+  ```
+</Tip>

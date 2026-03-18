@@ -1,0 +1,393 @@
+---
+title: "Pipe Endpoints"
+description: "REST API endpoints for managing Meerschaum pipe attributes and data."
+---
+
+All pipe endpoints are prefixed with `/mrsm/pipes`.
+
+Pipes are identified by three keys in the URL path:
+- `{connector_keys}` — e.g. `sql:main`
+- `{metric_key}` — e.g. `weather`
+- `{location_key}` — e.g. `nyc` or `[None]` for no location
+
+## List All Pipes
+
+<ResponseField name="GET /mrsm/pipes" type="object">
+  Return all registered pipes as a nested dictionary keyed by connector, metric, and location.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+<CodeGroup>
+```bash curl
+curl http://localhost:8000/mrsm/pipes \
+  -H "Authorization: Bearer <token>"
+```
+
+```python Python
+import requests
+
+resp = requests.get(
+    "http://localhost:8000/mrsm/pipes",
+    headers={"Authorization": "Bearer <token>"},
+)
+pipes = resp.json()
+```
+</CodeGroup>
+
+**Query parameters:**
+
+<ParamField query="connector_keys" type="string">
+  Filter by connector key.
+</ParamField>
+
+<ParamField query="metric_keys" type="string">
+  Filter by metric key.
+</ParamField>
+
+<ParamField query="location_keys" type="string">
+  Filter by location key.
+</ParamField>
+
+---
+
+## Get Pipe Keys
+
+<ResponseField name="GET /mrsm/pipes/keys" type="array">
+  Return a list of `[connector_keys, metric_key, location_key]` tuples for all registered pipes.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+```bash
+curl "http://localhost:8000/mrsm/pipes/keys?connector_keys=%5B%22sql%3Amain%22%5D" \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField query="connector_keys" type="string" default="[]">
+  JSON-encoded list of connector keys to filter by.
+</ParamField>
+
+<ParamField query="metric_keys" type="string" default="[]">
+  JSON-encoded list of metric keys to filter by.
+</ParamField>
+
+<ParamField query="location_keys" type="string" default="[]">
+  JSON-encoded list of location keys to filter by.
+</ParamField>
+
+<ParamField query="tags" type="string" default="[]">
+  JSON-encoded list of tags to filter by.
+</ParamField>
+
+<ParamField query="params" type="string" default="{}">
+  JSON-encoded filter parameters dictionary.
+</ParamField>
+
+---
+
+## Register a Pipe
+
+<ResponseField name="POST /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/register" type="SuccessTuple">
+  Register a new pipe. Returns `[true, "..."]` on success or `[false, "..."]` on failure.
+</ResponseField>
+
+**Required scope:** `pipes:write`
+
+<CodeGroup>
+```bash curl
+curl -X POST \
+  "http://localhost:8000/mrsm/pipes/sql:main/weather/nyc/register" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"columns": {"datetime": "timestamp"}, "tags": ["prod"]}'
+```
+
+```python Python
+import requests
+
+resp = requests.post(
+    "http://localhost:8000/mrsm/pipes/sql:main/weather/nyc/register",
+    headers={"Authorization": "Bearer <token>"},
+    json={"columns": {"datetime": "timestamp"}, "tags": ["prod"]},
+)
+print(resp.json())  # [True, "Success"]
+```
+</CodeGroup>
+
+<ParamField query="instance_keys" type="string">
+  Instance connector key (defaults to the server's configured instance).
+</ParamField>
+
+<ParamField body="parameters" type="object">
+  Optional pipe parameters dictionary to set on registration.
+</ParamField>
+
+---
+
+## Edit Pipe Parameters
+
+<ResponseField name="PATCH /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/edit" type="SuccessTuple">
+  Update an existing pipe's parameters.
+</ResponseField>
+
+**Required scope:** `pipes:write`
+
+```bash
+curl -X PATCH \
+  "http://localhost:8000/mrsm/pipes/sql:main/weather/nyc/edit" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"columns": {"datetime": "timestamp", "id": "station_id"}}'
+```
+
+<ParamField query="patch" type="boolean" default="false">
+  If `true`, merge the new parameters into existing ones instead of replacing.
+</ParamField>
+
+---
+
+## Get Pipe Attributes
+
+<ResponseField name="GET /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/attributes" type="object">
+  Return the full attributes dictionary for a pipe.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+```bash
+curl "http://localhost:8000/mrsm/pipes/sql:main/weather/nyc/attributes" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Get Pipe ID
+
+<ResponseField name="GET /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/id" type="integer">
+  Return the pipe's integer ID.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+---
+
+## Check Pipe Exists
+
+<ResponseField name="GET /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/exists" type="boolean">
+  Return `true` if the pipe's target table exists.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+---
+
+## Sync Data into a Pipe
+
+<ResponseField name="POST /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/data" type="SuccessTuple">
+  Add rows to an existing pipe.
+</ResponseField>
+
+**Required scope:** `pipes:write`
+
+<CodeGroup>
+```bash curl (JSON)
+curl -X POST \
+  "http://localhost:8000/mrsm/pipes/sql:main/weather/nyc/data" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {"timestamp": "2026-01-01", "id": 1, "value": 100.1},
+    {"timestamp": "2026-01-02", "id": 1, "value": 200.2}
+  ]'
+```
+
+```python Python
+import requests
+
+rows = [
+    {"timestamp": "2026-01-01", "id": 1, "value": 100.1},
+    {"timestamp": "2026-01-02", "id": 1, "value": 200.2},
+]
+resp = requests.post(
+    "http://localhost:8000/mrsm/pipes/sql:main/weather/nyc/data",
+    headers={"Authorization": "Bearer <token>"},
+    json=rows,
+)
+print(resp.json())  # [True, "Synced 2 rows"]
+```
+</CodeGroup>
+
+<ParamField query="check_existing" type="boolean" default="true">
+  Deduplicate against existing rows before inserting.
+</ParamField>
+
+<ParamField query="blocking" type="boolean" default="true">
+  Wait for the sync to complete before returning.
+</ParamField>
+
+<ParamField query="workers" type="integer">
+  Number of worker threads for parallel operations.
+</ParamField>
+
+---
+
+## Get Pipe Data
+
+<ResponseField name="GET /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/data" type="string (JSON)">
+  Return pipe data as a JSON-encoded array of records.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+```bash
+curl "http://localhost:8000/mrsm/pipes/sql:main/weather/nyc/data?begin=2026-01-01&limit=100" \
+  -H "Authorization: Bearer <token>"
+```
+
+<ParamField query="begin" type="string | int">
+  Filter rows newer than or equal to this value (ISO 8601 or integer).
+</ParamField>
+
+<ParamField query="end" type="string | int">
+  Filter rows older than this value.
+</ParamField>
+
+<ParamField query="params" type="string">
+  JSON-encoded filter parameters dictionary.
+</ParamField>
+
+<ParamField query="select_columns" type="string">
+  JSON-encoded list of columns to return.
+</ParamField>
+
+<ParamField query="omit_columns" type="string">
+  JSON-encoded list of columns to exclude.
+</ParamField>
+
+<ParamField query="limit" type="integer">
+  Maximum number of rows to return (capped by server configuration).
+</ParamField>
+
+<ParamField query="order" type="string" default="asc">
+  Sort order: `asc` or `desc`.
+</ParamField>
+
+<ParamField query="date_format" type="string" default="iso">
+  Datetime serialization format: `iso` (ISO 8601) or `epoch` (milliseconds).
+</ParamField>
+
+<ParamField query="date_unit" type="string" default="us">
+  Timestamp precision: `s`, `ms`, `us`, or `ns`.
+</ParamField>
+
+<ParamField query="double_precision" type="integer" default="15">
+  Decimal places for floating-point serialization (maximum `15`).
+</ParamField>
+
+---
+
+## Get Pipe Data as CSV
+
+<ResponseField name="GET /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/csv" type="file">
+  Download pipe data as a CSV file.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+```bash
+curl "http://localhost:8000/mrsm/pipes/sql:main/weather/nyc/csv" \
+  -H "Authorization: Bearer <token>" \
+  -o weather_nyc.csv
+```
+
+---
+
+## Get Sync Time
+
+<ResponseField name="GET /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/sync_time" type="string | int | null">
+  Return the pipe's latest (or earliest) datetime value.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+<ParamField query="newest" type="boolean" default="true">
+  If `true`, return the latest value. If `false`, return the oldest.
+</ParamField>
+
+---
+
+## Get Row Count
+
+<ResponseField name="GET /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/rowcount" type="integer">
+  Return the number of rows in the pipe's target table.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+<ParamField query="begin" type="string | int">
+  Count rows newer than or equal to this value.
+</ParamField>
+
+<ParamField query="end" type="string | int">
+  Count rows older than this value.
+</ParamField>
+
+<ParamField query="remote" type="boolean" default="false">
+  If `true`, count rows on the source connector instead of the target.
+</ParamField>
+
+---
+
+## Get Column Types
+
+<ResponseField name="GET /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/columns/types" type="object">
+  Return a dictionary of column names and their data types.
+</ResponseField>
+
+**Required scope:** `pipes:read`
+
+**Example response:**
+```json
+{
+  "timestamp": "datetime",
+  "station_id": "int",
+  "temperature": "float"
+}
+```
+
+---
+
+## Clear Pipe Data
+
+<ResponseField name="DELETE /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/clear" type="SuccessTuple">
+  Delete rows from the pipe's target table within optional bounds.
+</ResponseField>
+
+**Required scope:** `pipes:delete`
+
+```bash
+curl -X DELETE \
+  "http://localhost:8000/mrsm/pipes/sql:main/weather/nyc/clear?begin=2024-01-01&end=2025-01-01" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Drop Pipe Table
+
+<ResponseField name="DELETE /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/drop" type="SuccessTuple">
+  Drop the pipe's target table (registration is kept).
+</ResponseField>
+
+**Required scope:** `pipes:drop`
+
+---
+
+## Delete Pipe Registration
+
+<ResponseField name="DELETE /mrsm/pipes/{connector_keys}/{metric_key}/{location_key}/delete" type="SuccessTuple">
+  Remove the pipe's registration record (table is not dropped).
+</ResponseField>
+
+**Required scope:** `pipes:delete`

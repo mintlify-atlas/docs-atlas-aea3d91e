@@ -1,0 +1,239 @@
+---
+title: "Connector Classes"
+description: "Connect to SQL databases, API instances, Valkey caches, and custom data sources using Meerschaum connector classes."
+---
+
+Connectors represent connections to external data sources and are identified by a `type:label` string (e.g. `'sql:main'`, `'api:cloud'`). Meerschaum provides built-in connector classes for SQL, API, and Valkey, plus a framework for custom connectors.
+
+## Getting a Connector
+
+Use `get_connector()` to retrieve or create a connector:
+
+```python
+import meerschaum as mrsm
+
+# Retrieve the default SQL connector (sql:main)
+conn = mrsm.get_connector()
+
+# Retrieve a specific connector
+conn = mrsm.get_connector('sql', 'local')
+# or via colon-separated string:
+conn = mrsm.get_connector('sql:local')
+```
+
+See [`get_connector()`](/api-reference/get-connector) for full parameter reference.
+
+---
+
+## `Connector` (base class)
+
+`meerschaum.connectors.Connector` is the abstract base class for all connector types.
+
+```python
+from meerschaum.connectors import Connector
+```
+
+### Constructor
+
+<ParamField path="type" type="str | None" default="None">
+  The connector type, e.g. `'sql'`, `'api'`, `'valkey'`. Inferred from the class name if not provided.
+</ParamField>
+
+<ParamField path="label" type="str | None" default="None">
+  The connector label, e.g. `'main'`, `'local'`. Defaults to `'main'`.
+</ParamField>
+
+### Key Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `type` | `str` | The connector type string |
+| `label` | `str` | The connector label string |
+| `meta` | `Dict[str, Any]` | All non-private attributes needed to reconstruct the connector |
+
+### String Representation
+
+Connectors cast to `type:label`:
+
+```python
+conn = mrsm.get_connector('sql', 'main')
+print(conn)  # sql:main
+print(str(conn))  # sql:main
+```
+
+---
+
+## `SQLConnector`
+
+`meerschaum.connectors.SQLConnector` wraps SQLAlchemy to connect to SQL databases.
+
+```python
+from meerschaum.connectors import SQLConnector
+```
+
+### Supported Flavors
+
+`postgresql`, `sqlite`, `mysql`, `mariadb`, `mssql`, `oracle`, `duckdb`, `timescaledb`, `cockroachdb`, `citus`, `geopackage`
+
+### Creating a SQLConnector
+
+<CodeGroup>
+  ```python Via get_connector()
+  import meerschaum as mrsm
+
+  conn = mrsm.get_connector(
+      type='sql',
+      label='newlabel',
+      flavor='sqlite',
+      database='/file/path/to/database.db',
+  )
+  ```
+
+  ```python Via URI
+  import meerschaum as mrsm
+
+  conn = mrsm.get_connector(
+      type='sql',
+      label='remote',
+      uri='postgresql://user:pass@localhost:5432/mydb',
+  )
+  ```
+
+  ```bash Via Environment Variable
+  export MRSM_SQL_MYDB='postgresql://user:pass@localhost:5432/mydb'
+  ```
+</CodeGroup>
+
+### Key Methods
+
+#### `read(query_or_table)`
+
+Read a table or query result into a Pandas DataFrame:
+
+```python
+conn = mrsm.get_connector()
+df = conn.read('my_table')
+# or with a SQL query:
+df = conn.read('SELECT id, datetime FROM my_table LIMIT 100')
+```
+
+#### `to_sql(df)`
+
+Write a DataFrame to a SQL table (wraps `DataFrame.to_sql()`):
+
+```python
+conn.to_sql(df, name='my_table', chunksize=1000)
+```
+
+#### `exec(query)`
+
+Execute a SQLAlchemy query object:
+
+```python
+from meerschaum.utils.sql import get_sqlalchemy_table
+import sqlalchemy
+
+table = get_sqlalchemy_table('my_table', connector=conn)
+query = sqlalchemy.insert(table).values({'foo': 1, 'bar': 2})
+result = conn.exec(query)
+```
+
+#### `value(query)`
+
+Return a single scalar value from a query:
+
+```python
+query = (
+    "SELECT datetime FROM my_table "
+    "WHERE id = 1 ORDER BY datetime DESC LIMIT 1"
+)
+value = conn.value(query)
+# datetime.datetime(2021, 6, 6, 12, 0)
+```
+
+### Key Attributes
+
+| Attribute | Type | Description |
+|---|---|---|
+| `engine` | `sqlalchemy.Engine` | The underlying SQLAlchemy engine |
+| `flavor` | `str` | The database flavor string |
+| `IS_INSTANCE` | `bool` | `True` — SQLConnectors can act as Meerschaum instances |
+
+---
+
+## `APIConnector`
+
+`meerschaum.connectors.APIConnector` communicates with a remote Meerschaum API instance.
+
+```python
+from meerschaum.connectors import APIConnector
+```
+
+### Creating an APIConnector
+
+```bash
+# Via environment variable (URI form: protocol://user:pass@host:port)
+export MRSM_API_FOO='https://foo:bar@mrsm.example.com'
+```
+
+```python
+import meerschaum as mrsm
+
+conn = mrsm.get_connector('api', 'main')
+```
+
+### Key Attributes
+
+| Attribute | Type | Description |
+|---|---|---|
+| `protocol` | `str` | `'http'` or `'https'` |
+| `host` | `str` | The hostname of the API instance |
+| `port` | `int` | The port number |
+| `username` | `str` | Login username |
+| `IS_INSTANCE` | `bool` | `True` — APIConnectors can act as Meerschaum instances |
+
+---
+
+## `InstanceConnector`
+
+`meerschaum.connectors.InstanceConnector` is the abstract base class for connectors that can store pipes (i.e. `SQLConnector` and `APIConnector`).
+
+```python
+from meerschaum.connectors import InstanceConnector
+```
+
+Check whether a connector is an instance connector:
+
+```python
+conn = mrsm.get_connector('sql:main')
+print(conn.IS_INSTANCE)  # True
+```
+
+---
+
+## Custom Connectors
+
+Create custom connector types using the `make_connector` decorator:
+
+```python
+from meerschaum.connectors import make_connector, Connector
+
+@make_connector
+class FooConnector(Connector):
+    REQUIRED_ATTRIBUTES = ['username', 'password']
+
+    def fetch(self, pipe, **kwargs):
+        # Return a DataFrame with the pipe's new data.
+        ...
+```
+
+Once registered, use your connector like any other:
+
+```python
+pipe = mrsm.Pipe('foo:myconn', 'my_metric')
+pipe.sync()
+```
+
+<Tip>
+  Custom connectors are best packaged as [Meerschaum plugins](/api-reference/plugin). The `make_connector` decorator is typically called inside a plugin's module.
+</Tip>

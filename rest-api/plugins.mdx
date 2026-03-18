@@ -1,0 +1,153 @@
+---
+title: "Plugin Endpoints"
+description: "REST API endpoints for managing Meerschaum plugins on a repository."
+---
+
+All plugin endpoints are prefixed with `/mrsm/plugins`.
+
+These endpoints allow you to register, download, list, and delete plugins on a Meerschaum API instance acting as a repository.
+
+## List Plugins
+
+<ResponseField name="GET /mrsm/plugins" type="array">
+  Return a list of plugin names available in the repository.
+</ResponseField>
+
+<CodeGroup>
+```bash curl
+curl http://localhost:8000/mrsm/plugins \
+  -H "Authorization: Bearer <token>"
+```
+
+```python Python
+import requests
+
+resp = requests.get(
+    "http://localhost:8000/mrsm/plugins",
+    headers={"Authorization": "Bearer <token>"},
+)
+print(resp.json())  # ["noaa", "covid", "myplugin"]
+```
+</CodeGroup>
+
+<ParamField query="user_id" type="integer">
+  Filter plugins by the user's integer ID.
+</ParamField>
+
+<ParamField query="search_term" type="string">
+  Search for plugins whose name contains this string.
+</ParamField>
+
+**Example response:**
+
+```json
+["noaa", "covid", "myplugin"]
+```
+
+---
+
+## Download a Plugin
+
+<ResponseField name="GET /mrsm/plugins/{name}" type="file">
+  Download a plugin's archive file (`.tar.gz`).
+</ResponseField>
+
+```bash
+curl http://localhost:8000/mrsm/plugins/noaa \
+  -H "Authorization: Bearer <token>" \
+  -o noaa.tar.gz
+```
+
+---
+
+## Get Plugin Attributes
+
+<ResponseField name="GET /mrsm/plugins/{name}/attributes" type="object">
+  Return the metadata attributes for a plugin.
+</ResponseField>
+
+```bash
+curl http://localhost:8000/mrsm/plugins/noaa/attributes \
+  -H "Authorization: Bearer <token>"
+```
+
+**Example response:**
+
+```json
+{
+  "description": "Fetch weather data from the National Oceanic and Atmospheric Administration.",
+  "version": "1.2.0",
+  "author": "alice"
+}
+```
+
+---
+
+## Register (Upload) a Plugin
+
+<ResponseField name="POST /mrsm/plugins/{name}" type="SuccessTuple">
+  Upload a plugin archive and register it in the repository.
+</ResponseField>
+
+**Authentication:** Requires a logged-in user. The plugin is associated with the uploading user.
+
+```bash
+curl -X POST \
+  "http://localhost:8000/mrsm/plugins/myplugin" \
+  -H "Authorization: Bearer <token>" \
+  -F "archive=@myplugin.tar.gz" \
+  -F "version=1.0.0" \
+  -F 'attributes={"description": "My plugin description"}'
+```
+
+<ParamField query="name" type="string" required>
+  Name of the plugin.
+</ParamField>
+
+<ParamField body="archive" type="file" required>
+  The plugin archive as a multipart file upload.
+</ParamField>
+
+<ParamField body="version" type="string">
+  Plugin version string (e.g. `1.0.0`).
+</ParamField>
+
+<ParamField body="attributes" type="string">
+  JSON-encoded string of plugin attributes (e.g. `{"description": "..."}`).
+</ParamField>
+
+**Example response:**
+
+```json
+[true, "Successfully registered plugin 'myplugin'."]
+```
+
+<Note>
+  A user can only overwrite their own plugin. Attempting to overwrite another user's plugin returns `[false, "..."]`.
+</Note>
+
+---
+
+## Delete a Plugin
+
+<ResponseField name="DELETE /mrsm/plugins/{name}" type="SuccessTuple">
+  Delete a plugin and its archive from the repository.
+</ResponseField>
+
+**Authentication:** Must be the plugin owner or an admin.
+
+```bash
+curl -X DELETE \
+  "http://localhost:8000/mrsm/plugins/myplugin" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Example response:**
+
+```json
+[true, "Successfully deleted plugin 'myplugin'."]
+```
+
+<Warning>
+  Plugin deletion is permanent and cannot be undone.
+</Warning>

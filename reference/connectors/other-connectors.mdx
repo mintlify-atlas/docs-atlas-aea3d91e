@@ -1,0 +1,205 @@
+---
+title: "Other connectors"
+description: "Valkey, MongoDB, MQTT, and plugin-based connector types for Meerschaum."
+---
+
+Beyond the built-in `sql` and `api` connectors, Meerschaum supports additional connector types — some built-in and some provided by plugins. All of these implement the [instance connector interface](/reference/connectors/instance-connectors) or serve as fetch-only connectors.
+
+## Valkey connector
+
+The `ValkeyConnector` syncs pipes to a [Valkey](https://valkey.io/) instance. Because Valkey is a fork of Redis, this connector also works as a drop-in Redis connector.
+
+- **Type:** `valkey`
+- **Implementation:** built-in ([API docs](https://docs.meerschaum.io/meerschaum/connectors/valkey.html#ValkeyConnector))
+
+The pre-configured connector `valkey:main` connects to the Valkey instance in the [Meerschaum stack](/reference/stack/).
+
+<Tabs>
+  <Tab title="Attributes">
+    ```yaml
+    meerschaum:
+      connectors:
+        valkey:
+          main:
+            username: default
+            password: mrsm
+            host: localhost
+            port: 6379
+            db: 0
+            socket_timeout: 300
+    ```
+  </Tab>
+  <Tab title="URI">
+    ```yaml
+    meerschaum:
+      connectors:
+        valkey:
+          main:
+            uri: valkey://default:mrsm@localhost:6379/0?timeout=300s
+    ```
+  </Tab>
+</Tabs>
+
+## API connector
+
+The `APIConnector` syncs to a Meerschaum instance via the [Web API](https://api.mrsm.io/docs). Every `api` connector is an instance connector.
+
+- **Type:** `api`
+- **Implementation:** built-in ([API docs](https://docs.meerschaum.io/meerschaum/connectors/api.html#APIConnector))
+
+See the [API connectors](/reference/connectors/api-connectors) page for full configuration and usage details.
+
+<Tabs>
+  <Tab title="Attributes">
+    ```yaml
+    meerschaum:
+      connectors:
+        api:
+          myinstance:
+            protocol: http
+            username: foo
+            password: bar
+            host: localhost
+            port: 8000
+    ```
+  </Tab>
+  <Tab title="URI">
+    ```yaml
+    meerschaum:
+      connectors:
+        api:
+          myinstance:
+            uri: http://foo:bar@localhost:8000
+    ```
+  </Tab>
+</Tabs>
+
+## MongoDB connector
+
+The `MongoDBConnector` syncs pipes to a MongoDB cluster. You can read from existing collections and store pipe data as documents.
+
+- **Type:** `mongodb`
+- **Implementation:** [`mongodb-connector` plugin](https://github.com/bmeares/mongodb-connector)
+
+```bash
+# Install the plugin first
+mrsm install plugin mongodb-connector
+```
+
+<Tabs>
+  <Tab title="Connector config">
+    ```yaml
+    meerschaum:
+      connectors:
+        mongodb:
+          mycluster:
+            uri: mongodb://localhost:27017
+            database: foo
+    ```
+  </Tab>
+  <Tab title="Fetch pipe config">
+    ```yaml
+    connector: mongodb:mycluster
+    metric: bar
+    parameters:
+      fetch:
+        collection: bar
+        query:
+          a: 1
+        projection: {}
+    ```
+  </Tab>
+</Tabs>
+
+## MQTT connector
+
+The `MQTTConnector` subscribes to MQTT topics and syncs the received messages as pipe data.
+
+- **Type:** `mqtt`
+- **Implementation:** [`mqtt-connector` plugin](https://github.com/bmeares/mqtt-connector)
+
+```bash
+# Install the plugin first
+mrsm install plugin mqtt-connector
+```
+
+<Tabs>
+  <Tab title="Connector config">
+    ```yaml
+    meerschaum:
+      connectors:
+        mqtt:
+          broker:
+            host: localhost
+            port: 1883
+            username: foo
+            password: bar
+            transport: tcp
+            keepalive: 60
+    ```
+  </Tab>
+  <Tab title="Fetch pipe config">
+    ```yaml
+    connector: mqtt:broker
+    metric: temperature
+    columns:
+      datetime: timestamp
+      topic: topic
+    parameters:
+      fetch:
+        topic:
+          - "foo/#"
+          - "bar/#"
+    ```
+  </Tab>
+</Tabs>
+
+## Plugin connectors
+
+Any installed plugin can register a custom connector type using the `@make_connector` decorator. Plugin connectors are loaded automatically when the plugin is installed.
+
+```python
+# In your plugin's __init__.py or a module it imports:
+from meerschaum.connectors import make_connector, Connector
+import meerschaum as mrsm
+
+@make_connector
+class MyServiceConnector(Connector):
+    REQUIRED_ATTRIBUTES = ['api_key']
+
+    def fetch(self, pipe: mrsm.Pipe, **kwargs):
+        # Return a DataFrame of new data for the pipe.
+        ...
+```
+
+To use the connector:
+
+```bash
+# The type is derived from the class name: MyServiceConnector -> myservice
+export MRSM_MYSERVICE_PROD='{"api_key": "sk-..." }'
+mrsm bootstrap connector
+```
+
+<Note>
+  Plugin connectors are unloaded when the plugin is uninstalled. All connector types registered by a plugin are removed when the plugin is removed.
+</Note>
+
+## Comparison
+
+<AccordionGroup>
+  <Accordion title="Which connector should I use for storing pipe data?">
+    Use `sql:main` (TimescaleDB) or any other `sql` connector for the best performance and compatibility. The `SQLConnector` has the most complete implementation of the instance connector interface and supports in-place syncing.
+
+    Use `valkey:main` for lightweight, key-value style storage where full SQL query support is not required.
+
+    Use a MongoDB connector if your team already operates MongoDB and wants to keep pipe data alongside existing collections.
+  </Accordion>
+  <Accordion title="Which connector should I use as a data source?">
+    Use any connector type as a fetch connector by implementing a `fetch()` method in a plugin, or by configuring the `sql` or `parameters.fetch` parameters on a pipe.
+
+    For IoT and real-time data, the MQTT connector is purpose-built for subscribing to topic streams.
+  </Accordion>
+  <Accordion title="Can I use multiple instance connectors at once?">
+    Yes. Each pipe has its own instance connector. You can have some pipes stored in `sql:main`, others in `valkey:main`, and others in a MongoDB instance — all managed by the same Meerschaum environment.
+  </Accordion>
+</AccordionGroup>

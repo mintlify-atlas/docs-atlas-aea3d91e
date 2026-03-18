@@ -1,0 +1,220 @@
+---
+title: "Compose projects"
+description: "Use Meerschaum Compose to declare pipes, connectors, and plugins in a single YAML file for reproducible ETL pipelines."
+---
+
+Meerschaum Compose lets you define your entire data pipeline — pipes, connectors, plugins, and runtime configuration — in a single `mrsm-compose.yaml` file. This is the recommended approach for building shareable, version-controlled projects.
+
+<Tip>
+  Jump straight into a Dockerized environment by creating a new repository from the [Meerschaum Compose Project Template](https://github.com/bmeares/mrsm-compose-template).
+</Tip>
+
+## Project structure
+
+A Compose project has this layout:
+
+```
+awesome-sauce/
+├── mrsm-compose.yaml   # Pipeline declaration
+├── plugins/            # Local plugins
+│   └── fred.py
+└── tiny.db             # SQLite database (created on first run)
+```
+
+## Build the project step by step
+
+<Steps>
+  <Step title="Create the project directory">
+    ```bash
+    mkdir awesome-sauce
+    cd awesome-sauce
+    ```
+  </Step>
+
+  <Step title="Write mrsm-compose.yaml">
+    Create `mrsm-compose.yaml` with the following content. This project ingests US egg and chicken price data from FRED (the Federal Reserve Economic Data service), then joins and unions those tables.
+
+    ```yaml
+    project_name: "awesome-sauce"
+
+    sync:
+      pipes:
+        - connector: "plugin:fred"
+          metric: "price"
+          location: "eggs"
+          target: "price_eggs"
+          columns:
+            datetime: "DATE"
+          dtypes:
+            "PRICE": "float64"
+          parameters:
+            fred:
+              series_id: "APU0000708111"
+
+        - connector: "plugin:fred"
+          metric: "price"
+          location: "chicken"
+          target: "price_chicken"
+          columns:
+            datetime: "DATE"
+          dtypes:
+            "PRICE": "float64"
+          parameters:
+            fred:
+              series_id: "APU0000706111"
+
+        - connector: "sql:tiny"
+          metric: "price"
+          location: "eggs_chicken_a"
+          target: "Food Prices A"
+          columns:
+            datetime: "DATE"
+          parameters:
+            query: |-
+              SELECT
+                e."DATE",
+                e."PRICE" AS "PRICE_EGGS",
+                c."PRICE" AS "PRICE_CHICKEN"
+              FROM "price_eggs" AS e
+              INNER JOIN "price_chicken" AS c
+                ON e."DATE" = c."DATE"
+
+        - connector: "sql:tiny"
+          metric: "price"
+          location: "eggs_chicken_b"
+          target: "Food Prices B"
+          columns:
+            datetime: "DATE"
+            food: "FOOD"
+          parameters:
+            query: |-
+              SELECT
+                "DATE",
+                "PRICE",
+                'eggs' AS "FOOD"
+              FROM "price_eggs"
+              UNION ALL
+              SELECT
+                "DATE",
+                "PRICE",
+                'chicken' AS "FOOD"
+              FROM "price_chicken"
+
+    config:
+      meerschaum:
+        instance: "sql:tiny"
+        connectors:
+          sql:
+            tiny:
+              flavor: "sqlite"
+              database: "tiny.db"
+    ```
+
+    This file uses two connectors:
+
+    | Connector | Role |
+    |---|---|
+    | `plugin:fred` | Data source plugin that fetches CSV data from FRED. |
+    | `sql:tiny` | SQLite file `tiny.db` — used as both the instance and a SQL data source. |
+  </Step>
+
+  <Step title="Write the fred plugin">
+    Create the `plugins/` directory and paste the following into `plugins/fred.py`:
+
+    ```python
+    import meerschaum as mrsm
+
+    CSV_BASE_URL: str = 'https://fred.stlouisfed.org/graph/fredgraph.csv'
+
+    required = ['pandas']
+
+    def fetch(pipe: mrsm.Pipe, **kwargs) -> 'pd.DataFrame':
+        import pandas as pd
+        series_id = pipe.parameters.get('fred', {}).get('series_id', None)
+        url = f"{CSV_BASE_URL}?id={series_id}"
+        df = pd.read_csv(url)
+        if series_id in df.columns:
+            df['PRICE'] = pd.to_numeric(df[series_id], errors='coerce')
+            del df[series_id]
+        return df
+    ```
+
+    The `fetch()` function reads `pipe.parameters['fred']['series_id']` — the value you set in `mrsm-compose.yaml` — and returns a DataFrame. Meerschaum handles incrementally syncing that DataFrame into the database.
+
+    <Note>`required = ['pandas']` tells Meerschaum to install pandas into the plugin's virtual environment automatically.</Note>
+  </Step>
+
+  <Step title="Install the compose plugin">
+    From inside the project directory, install the `compose` plugin:
+
+    ```bash
+    mrsm install plugin compose
+    ```
+  </Step>
+
+  <Step title="Initialize the project">
+    Run `compose init` to install plugin dependencies into the project's virtual environment:
+
+    ```bash
+    mrsm compose init
+    ```
+
+    This installs `pandas` (declared in `required`) into a project-scoped virtual environment.
+  </Step>
+
+  <Step title="Run the pipeline">
+    Sync all pipes defined in `mrsm-compose.yaml`:
+
+    ```bash
+    mrsm compose run
+    ```
+
+    Meerschaum executes the following steps in order:
+
+    1. Ingest US egg prices from FRED into `price_eggs`
+    2. Ingest US chicken prices from FRED into `price_chicken`
+    3. Join both tables on `DATE` into `Food Prices A`
+    4. Union both tables with a `FOOD` column into `Food Prices B`
+  </Step>
+</Steps>
+
+## Verify and explore the data
+
+All standard Meerschaum actions run inside the project context. Check the most recent data with:
+
+```bash
+mrsm compose show data
+```
+
+Drop into a Python REPL to explore the data with the Python API:
+
+```bash
+mrsm compose python
+```
+
+From the REPL you can use `mrsm.get_pipes()` and `pipe.get_data()` to inspect any pipe.
+
+## Key compose commands
+
+| Command | Description |
+|---|---|
+| `mrsm compose init` | Install plugin dependencies into the project virtual environment. |
+| `mrsm compose run` | Sync all pipes defined in `mrsm-compose.yaml`. |
+| `mrsm compose show data` | Preview data from all project pipes. |
+| `mrsm compose python` | Open a Python REPL in the project context. |
+| `mrsm compose show pipes` | List all pipes in the project. |
+
+## How compose resolves plugins
+
+When you run `mrsm compose`, Meerschaum automatically adds the `plugins/` directory in your project to the plugin search path. Any `.py` file in that directory is treated as a local plugin — no separate installation step is needed.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Writing plugins" icon="code" href="/reference/plugins/writing-plugins">
+    Learn how to write data plugins, action plugins, and more.
+  </Card>
+  <Card title="Connectors" icon="plug" href="/reference/connectors">
+    Understand SQL, API, and plugin connectors and how to configure them.
+  </Card>
+</CardGroup>

@@ -1,0 +1,122 @@
+---
+title: "Tags"
+description: "Group and filter pipes across different connectors and metrics using custom tags."
+---
+
+Tags let you create custom groupings of pipes that cut across connector and metric boundaries. Any pipe with the tag `production`, for example, can be selected regardless of where it stores data or what it contains.
+
+## Defining tags
+
+You can assign tags when constructing a pipe in Python:
+
+```python
+import meerschaum as mrsm
+
+pipe = mrsm.Pipe(
+    'sql:foo', 'bar',
+    tags=['production', 'weather'],
+)
+```
+
+Or add them to an existing pipe's parameters and persist:
+
+```python
+pipe = mrsm.get_pipes(as_list=True)[0]
+pipe.tags = ['tag1', 'tag2']
+pipe.edit()  # Persist the tags in the database.
+```
+
+Tags live in the pipe's `parameters` dictionary under the `tags` key. You can also edit them directly with `edit pipes`:
+
+```bash
+mrsm edit pipes -c sql:foo -m bar
+```
+
+```yaml
+tags:
+  - production
+  - weather
+columns:
+  datetime: date
+  id: station_id
+```
+
+### The `tag pipes` action
+
+The quickest way to add tags in bulk is the `tag pipes` action. New tags are passed as positional arguments:
+
+```bash
+# Add the tag 'production' to all pipes on sql:main
+mrsm tag pipes production -c sql:main
+```
+
+<Note>
+  Pass new tags as positional arguments. The `--tags` flag is reserved for *filtering* which pipes to target, not for specifying the tags to add.
+</Note>
+
+## Selecting pipes with tags
+
+Use `--tags` (or `-t`) to filter any pipe command by tag.
+
+```bash
+mrsm show pipes --tags production
+mrsm sync pipes --tags weather
+```
+
+### Tag syntax
+
+The `--tags` syntax supports boolean logic across space-separated and comma-separated values:
+
+| Syntax | Meaning |
+|---|---|
+| `--tags foo bar` | Pipes tagged `foo` **OR** `bar` |
+| `--tags foo,bar` | Pipes tagged `foo` **AND** `bar` |
+| `--tags foo,bar baz,qux` | Pipes tagged (`foo` AND `bar`) **OR** (`baz` AND `qux`) |
+| `--tags foo _bar` | Pipes tagged `foo` but **NOT** `bar` |
+
+A leading underscore on any tag negates it, overriding both `OR` and `AND` logic:
+
+```bash
+# Pipes tagged 'red' and 'cat', OR pipes tagged 'blue' and 'dog'
+mrsm show pipes --tags red,cat blue,dog
+
+# Pipes tagged 'pet' but NOT 'bird'
+mrsm show pipes --tags pet _bird
+```
+
+## Removing tags
+
+Prefix a tag with an underscore in the `tag pipes` action to remove it:
+
+```bash
+# Remove the tag 'production' from all pipes currently tagged as 'production'
+mrsm tag pipes _production --tags production
+```
+
+## Examining tags
+
+The `show tags` action displays pipes grouped by their shared tags:
+
+```bash
+mrsm show tags
+```
+
+Pass tag names as positional arguments to limit the output to specific tags:
+
+```bash
+mrsm show tags sc ga
+```
+
+`show tags` accepts the same filter flags as other pipe commands (`-c`, `-m`, `-l`, `-t`), so you can scope which pipes are considered when building the tag summary.
+
+## Key negation
+
+Just as tags can be negated with `_`, the connector, metric, and location keys also support negation with a leading underscore:
+
+```bash
+# All pipes except those with connector sql:legacy
+mrsm show pipes -c _sql:legacy
+
+# All pipes with metric 'weather' not on the location 'test'
+mrsm show pipes -m weather -l _test
+```

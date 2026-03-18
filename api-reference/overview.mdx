@@ -1,0 +1,90 @@
+---
+title: "Python API Overview"
+description: "Use Meerschaum as a Python library to manage pipes, connectors, jobs, and plugins programmatically."
+---
+
+Meerschaum is both a CLI tool and a Python library. The public API is importable directly from the `meerschaum` package.
+
+## Installation
+
+```bash
+pip install meerschaum
+```
+
+## Top-Level Imports
+
+All primary objects and functions are available from the `meerschaum` namespace:
+
+```python
+import meerschaum as mrsm
+
+# Core classes
+from meerschaum import Pipe, Plugin, Job, Connector, InstanceConnector
+
+# Key functions
+from meerschaum import get_pipes, get_connector, get_config
+```
+
+<CardGroup cols={2}>
+  <Card title="Pipe" icon="pipe-section" href="/api-reference/pipe">
+    The primary data abstraction. Sync, query, and manage datastreams.
+  </Card>
+  <Card title="Connector" icon="plug" href="/api-reference/connector">
+    Connect to SQL databases, API instances, and Valkey caches.
+  </Card>
+  <Card title="Plugin" icon="puzzle-piece" href="/api-reference/plugin">
+    Package and distribute custom data connectors and actions.
+  </Card>
+  <Card title="Job" icon="clock" href="/api-reference/job">
+    Run and manage background processes, locally or on a remote API instance.
+  </Card>
+  <Card title="get_pipes()" icon="list" href="/api-reference/get-pipes">
+    Retrieve a filtered dictionary or list of registered pipes.
+  </Card>
+  <Card title="get_connector()" icon="link" href="/api-reference/get-connector">
+    Retrieve or create a connector instance by type and label.
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+```python
+import meerschaum as mrsm
+
+# Create a pipe and sync data from a CSV
+pipe = mrsm.Pipe(
+    'csv', 'weather',
+    instance='sql:local',
+    columns={'datetime': 'timestamp', 'id': 'station'},
+)
+
+import pandas as pd
+df = pd.read_csv('weather.csv')
+success, message = pipe.sync(df)
+print(message)
+
+# Read data back as a DataFrame
+df = pipe.get_data(begin='2024-01-01')
+print(df.head())
+```
+
+## The `SuccessTuple`
+
+Many Meerschaum methods return a `SuccessTuple`, which is a `tuple[bool, str]`:
+
+```python
+success, message = pipe.sync(df)
+if not success:
+    print(f"Sync failed: {message}")
+```
+
+The first element is a boolean indicating success or failure; the second is a human-readable message.
+
+## Type Annotations
+
+```python
+from meerschaum.utils.typing import SuccessTuple
+
+def my_function() -> SuccessTuple:
+    return True, "Success"
+```

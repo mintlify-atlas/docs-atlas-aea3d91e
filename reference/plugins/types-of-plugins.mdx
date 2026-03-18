@@ -1,0 +1,338 @@
+---
+title: "Types of plugins"
+description: "An overview of the different plugin types in Meerschaum: fetch, sync, action, connector, API, Dash, and library plugins."
+---
+
+There are three main kinds of Meerschaum plugin: those which **provide data**, **perform actions**, or **extend the API**. You can use any or all three purposes in a single plugin. You can also create [library plugins](#library-plugins) to share utilities across other plugins.
+
+For technical implementation details, see the [Writing plugins](/reference/plugins/writing-plugins) guide.
+
+## Data plugins
+
+Data plugins retrieve and parse data, then pass it to Meerschaum for storage and analysis. There are two types: **fetch** and **sync** plugins.
+
+### Fetch plugins
+
+Fetch plugins are the most straightforward. Define a `fetch()` function that returns data from any source, and Meerschaum handles [filtering duplicates](https://docs.meerschaum.io/#meerschaum.Pipe.filter_existing) and updating your tables.
+
+**When to use:** You want to pull data from a source and don't need custom sync logic.
+
+```python
+# ~/.config/meerschaum/plugins/foo.py
+__version__ = '0.0.1'
+required = []
+
+import datetime
+
+def register(pipe, **kw):
+    return {'columns': {'datetime': 'dt'}}
+
+def fetch(pipe, **kw):
+    """Return a pandas DataFrame or a dictionary of lists."""
+    return {'dt': [datetime.datetime.utcnow()]}
+```
+
+You can also return a list of dictionaries, which is often more convenient:
+
+```python
+def fetch(pipe, **kw):
+    import requests
+    response = requests.get('https://api.example.com/data')
+    return response.json()  # list of dicts
+```
+
+### Sync plugins
+
+Sync plugins override the built-in `sync` process entirely and give you complete control. They return a `SuccessTuple` — a `Tuple[bool, str]` — instead of returning data directly.
+
+**When to use:** You need custom multiprocessing, distributed computing, or want to sync multiple pipes from a single action.
+
+```python
+# ~/.config/meerschaum/plugins/foo.py
+__version__ = '0.0.1'
+required = []
+
+import datetime
+from meerschaum.utils.typing import Dict, SuccessTuple
+
+def register(pipe, **kw) -> Dict[str, Dict[str, str]]:
+    return {'columns': {'datetime': 'dt'}}
+
+def sync(pipe, **kw) -> SuccessTuple:
+    data = {'dt': [datetime.datetime.utcnow()]}
+    success, msg = pipe.sync(data, **kw)
+    if not success:
+        return False, 'Received error:\n' + msg
+    return True, 'Success'
+```
+
+<Tip>
+  Both `fetch()` and `sync()` receive useful keyword arguments like `begin` and `end` datetimes. Inspect `**kw` or run `mrsm show arguments` to see what's available.
+</Tip>
+
+## Action plugins
+
+Action plugins add custom commands to Meerschaum. An action plugin can provide multiple actions, and because plugins are loaded last, they can even override built-in actions.
+
+Actions integrate into the larger Meerschaum system:
+
+- Execute as background jobs
+- Run via the web console or the API
+- Inherit standard CLI flags like `--begin`, `--end`, `-y`, and `-f`
+- Appear in `mrsm show actions`
+
+```python
+# ~/.config/meerschaum/plugins/foo.py
+
+__version__ = '0.0.1'
+required = []
+
+import meerschaum as mrsm
+from meerschaum.plugins import make_action
+from meerschaum.utils.typing import Optional, List, SuccessTuple
+
+@make_action
+def foo(action: Optional[List[str]] = None, **kwargs) -> SuccessTuple:
+    """Echo back the words that follow `mrsm foo`."""
+    if not action:
+        return False, "You didn't say anything."
+    return True, 'You said: ' + ' '.join(action)
+
+@make_action
+def bar(**kwargs) -> SuccessTuple:
+    """Help text for the command `bar`."""
+    print('This is the entry from the command `mrsm bar`.')
+    mrsm.pprint(kwargs)
+    return True, 'Success'
+```
+
+Functions named after the plugin itself are automatically treated as actions too:
+
+```python
+def foo(**kw):
+    """Called by `mrsm foo`."""
+    return True, 'Hello, World!'
+```
+
+## Connector plugins
+
+Connector plugins define entirely new connector types using the `@make_connector` decorator. Once defined, users can create connectors of your new type via `mrsm bootstrap connector` or environment variables.
+
+**When to use:** You are creating a reusable integration with an external system and want users to manage credentials as named connectors.
+
+```python
+# plugins/foo.py
+
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+import meerschaum as mrsm
+from meerschaum.connectors import make_connector, Connector
+
+required = ['requests']
+
+@make_connector
+class FooConnector(Connector):
+
+    REQUIRED_ATTRIBUTES = ['username', 'password']
+
+    def fetch(
+        self,
+        pipe: mrsm.Pipe,
+        begin: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        **kwargs: Any
+    ) -> List[Dict[str, Any]]:
+        params = {}
+        if begin:
+            params['begin'] = begin.isoformat()
+        if end:
+            params['end'] = end.isoformat()
+        response = self.session.get('https://foo.com/data', params=params)
+        return response.json()
+
+    @property
+    def session(self) -> 'requests.Session':
+        _sesh = self.__dict__.get('_session', None)
+        if _sesh is not None:
+            return _sesh
+        import requests
+        self._session = requests.Session()
+        self._session.auth = (self.username, self.password)
+        return self._session
+```
+
+Define connectors as environment variables:
+
+```bash
+export MRSM_FOO_BAR='{"username": "bar", "password": "fuzz"}'
+export MRSM_FOO_BAZ='{"username": "baz", "password": "fizz"}'
+```
+
+## API plugins
+
+API plugins extend the Meerschaum web API by adding FastAPI endpoints. Use the `@api_plugin` decorator to define an initialization function executed when `mrsm start api` is run.
+
+**When to use:** You want to integrate Meerschaum's API with an existing authentication system, or expose custom data endpoints to other services.
+
+```python
+# ~/.config/meerschaum/plugins/foo.py
+from meerschaum.plugins import api_plugin
+
+@api_plugin
+def init_api(app):
+    import fastapi
+    from meerschaum.api import manager
+
+    @app.get('/my/new/path')
+    def my_new_path(
+        curr_user=fastapi.Depends(manager)
+    ):
+        return {'message': f'The current user is {curr_user.name}'}
+```
+
+## Dash (web console) plugins
+
+Add [Plotly Dash](https://dash.plotly.com/) pages to the Meerschaum Web Console with `@dash_plugin` and `@web_page`.
+
+**When to use:** You want to add a graphical interface to your plugin that integrates with the web console.
+
+```python
+# ~/.config/meerschaum/plugins/example.py
+
+from meerschaum.plugins import dash_plugin, web_page
+
+@dash_plugin
+def init_dash(dash_app):
+
+    import dash.html as html
+    import dash_bootstrap_components as dbc
+    from dash import Input, Output, no_update
+
+    # Routes to '/dash/my-page'
+    @web_page('/my-page', login_required=False)
+    def my_page():
+        return dbc.Container([
+            html.H1('Hello, World!'),
+            dbc.Button('Click me', id='my-button'),
+            html.Div(id='my-output-div'),
+        ])
+
+    @dash_app.callback(
+        Output('my-output-div', 'children'),
+        Input('my-button', 'n_clicks'),
+    )
+    def my_button_click(n_clicks):
+        if not n_clicks:
+            return no_update
+        return html.P(f'You clicked {n_clicks} times!')
+```
+
+Sub-paths are routed to your base callback. For example, `/items/apple` is accepted by `@web_page('/items')`:
+
+```python
+@dash_plugin
+def init_dash(dash_app):
+    import dash.html as html
+    import dash.dcc as dcc
+    from dash import Input, Output, no_update
+
+    @web_page  # Defaults to '/dash/items'
+    def items():
+        return dbc.Container([
+            dcc.Location(id='my-location'),
+            html.Div(id='my-output-div'),
+        ])
+
+    @dash_app.callback(
+        Output('my-output-div', 'children'),
+        Input('my-location', 'pathname'),
+    )
+    def render_page_from_url(pathname):
+        if not str(pathname).startswith('/dash/items'):
+            return no_update
+        item_id = pathname.replace('/dash/items', '').lstrip('/').split('/')[0]
+        if not item_id:
+            return html.P("You're on the base /items page.")
+        return html.P(f"You're looking at item '{item_id}'.")
+```
+
+## Library plugins
+
+Library plugins contain shared utilities that other plugins depend upon. List them in your `required` list with the `plugin:` prefix.
+
+**When to use:** You have shared logic, data transformations, or dependencies that multiple plugins need.
+
+```python
+# ~/.config/meerschaum/plugins/lib.py
+__version__ = '1.0.0'
+required = ['pandas']
+
+def transform_df(df: 'pd.DataFrame') -> 'pd.DataFrame':
+    df['foo'] = 'bar'
+    return df
+```
+
+Dependent plugins inherit the library's dependencies without reinstalling them:
+
+```python
+# ~/.config/meerschaum/plugins/foo.py
+__version__ = '0.0.1'
+required = ['plugin:lib']
+
+import meerschaum as mrsm
+import datetime
+lib = mrsm.Plugin('lib')
+
+def register(pipe, **kw):
+    return {'columns': {'datetime': 'dt'}}
+
+def fetch(pipe, **kw) -> 'pd.DataFrame':
+    # pandas inherited from `lib`; no need to add it to `required`
+    import pandas as pd
+    df = pd.DataFrame({'dt': [datetime.datetime.utcnow()]})
+    return lib.module.transform_df(df)
+```
+
+## Sync hooks
+
+Sync hooks are callbacks that fire before or after the `sync pipes` action. They are not a standalone plugin type — any plugin can register hooks using `@pre_sync_hook` and `@post_sync_hook`.
+
+```python
+from meerschaum.plugins import pre_sync_hook, post_sync_hook
+
+@pre_sync_hook
+def before_sync(pipe, **kwargs):
+    print(f'About to sync {pipe}...')
+
+@post_sync_hook
+def after_sync(pipe, success_tuple, sync_duration=None, **kwargs):
+    success, msg = success_tuple
+    status = 'succeeded' if success else 'failed'
+    print(f'Sync {status} in {sync_duration:.2f}s')
+```
+
+## Choosing the right plugin type
+
+<AccordionGroup>
+  <Accordion title="I want to ingest data from an external source">
+    Use a **fetch plugin**. Define `register()` to set column mappings and `fetch()` to return your data. Meerschaum handles all incremental update logic.
+  </Accordion>
+  <Accordion title="I need full control over the sync process">
+    Use a **sync plugin**. Define `sync()` to take over the entire syncing flow, call `pipe.sync()` yourself, and return a `SuccessTuple`.
+  </Accordion>
+  <Accordion title="I want to add a new CLI command">
+    Use an **action plugin**. Decorate your function with `@make_action` and return a `SuccessTuple`. Your command will integrate with background jobs, the web console, and the API automatically.
+  </Accordion>
+  <Accordion title="I want users to manage credentials for my integration">
+    Use a **connector plugin** with `@make_connector`. Users can then create named connectors of your type and reference them from pipes.
+  </Accordion>
+  <Accordion title="I want to add endpoints to the Meerschaum API">
+    Use an **API plugin** with `@api_plugin`. Your initialization function receives the FastAPI `app` object directly.
+  </Accordion>
+  <Accordion title="I want to add a page to the web console">
+    Use a **Dash plugin** with `@dash_plugin` and `@web_page`. Your pages can include callbacks and interactive Dash components.
+  </Accordion>
+  <Accordion title="I want to share code across multiple plugins">
+    Create a **library plugin**. Other plugins can list it in their `required` list as `plugin:<name>` and import it with `mrsm.Plugin('<name>').module`.
+  </Accordion>
+</AccordionGroup>

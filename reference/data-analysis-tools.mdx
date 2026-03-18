@@ -1,0 +1,158 @@
+---
+title: "Data Analysis Tools"
+description: "Integrate Meerschaum with Pandas, SQLAlchemy, Grafana, and other data analysis tools."
+---
+
+Meerschaum is designed to fit naturally into existing data workflows. Whether you are using Pandas, SQLAlchemy, Grafana, or the command line, Meerschaum provides first-class integrations.
+
+## Visualization Stack
+
+Meerschaum comes with a pre-configured data visualization stack so that you can spend your time on analysis rather than configuring servers. Start it with:
+
+```bash
+mrsm stack up -d
+```
+
+The stack includes a pre-configured Grafana instance wired to your Meerschaum database, giving you interactive dashboards out of the box.
+
+---
+
+## Pandas Integration
+
+Meerschaum lets you tap into your datastreams as Pandas DataFrames.
+
+### Reading Data
+
+```python
+import meerschaum as mrsm
+
+weather_pipe = mrsm.Pipe('plugin:noaa', 'weather')
+
+# Optionally filter by datetime or other parameters.
+df = weather_pipe.get_data(
+    begin='2020-01-01',
+    end='2021-01-01',
+    params={'station': ['KATL', 'KCEU']},
+)
+```
+
+### Syncing a DataFrame
+
+Create new pipes on any instance from a DataFrame and index column names:
+
+```python
+import meerschaum as mrsm
+import pandas as pd
+
+df = pd.read_csv('data.csv')
+csv_pipe = mrsm.Pipe(
+    'csv', 'weather',
+    instance='sql:local',
+    columns={'datetime': 'timestamp', 'id': 'station'},
+)
+csv_pipe.sync(df)
+```
+
+<Note>
+  A Meerschaum instance is a connector to a database or API that itself contains Meerschaum pipes. The instance `sql:local` defaults to a built-in SQLite database.
+</Note>
+
+### Direct Table Access
+
+You can also bypass pipes and access tables directly using a connector:
+
+```python
+import meerschaum as mrsm
+import pandas as pd
+
+conn = mrsm.get_connector()
+df = pd.read_csv('data.csv')
+
+# Wrapper around df.to_sql().
+conn.to_sql(df, chunksize=1000)
+```
+
+Read a table or query result into a DataFrame with `conn.read()`:
+
+```python
+import meerschaum as mrsm
+
+mrsm.get_connector().read('table')
+#    id            datetime
+# 0   1 2021-06-06 12:00:00
+```
+
+---
+
+## SQLAlchemy Integration
+
+If you are already using [SQLAlchemy](https://www.sqlalchemy.org/), Meerschaum fits neatly into your workflow.
+
+### Engine Access
+
+```python
+import meerschaum as mrsm
+from meerschaum.utils.sql import get_sqlalchemy_table
+import sqlalchemy
+
+conn = mrsm.get_connector()
+
+# Directly access the sqlalchemy engine.
+print(conn.engine)
+# Engine(postgresql://mrsm:***@localhost:5432/meerschaum)
+
+table = get_sqlalchemy_table('table', connector=conn)
+query = sqlalchemy.insert(table).values({'foo': 1, 'bar': 2})
+
+conn.exec(query)
+# <sqlalchemy.engine.cursor.LegacyCursorResult object at 0x7fbe992e4190>
+```
+
+### Selecting a Single Value
+
+Use `conn.value()` to select a single scalar from a query:
+
+```python
+import meerschaum as mrsm
+
+conn = mrsm.get_connector()
+query = (
+    "SELECT datetime "
+    "FROM table "
+    "WHERE id = 1 "
+    "ORDER BY datetime DESC "
+    "LIMIT 1"
+)
+conn.value(query)
+# datetime.datetime(2021, 6, 6, 12, 0)
+```
+
+---
+
+## SQL CLI
+
+The `sql` command lets you quickly interact with your databases directly from the command line.
+
+```bash
+mrsm sql
+```
+
+For supported database flavors, Meerschaum integrates with tools from the [dbcli](https://www.dbcli.com/) project, dropping you into an interactive SQL environment.
+
+The `sql` command also lets you run queries directly:
+
+```bash
+mrsm sql "SELECT COUNT(*) FROM my_table" -c sql:main
+```
+
+<Tip>
+  The `sql` command supports the following database flavors: `mssql`, `mysql`, `oracle`, `postgresql`, `sqlite`, `duckdb`, `mariadb`, `timescaledb`, and more. Flavor support is provided via SQLAlchemy.
+</Tip>
+
+---
+
+## Grafana Integration
+
+The Meerschaum stack includes Grafana pre-configured to connect to your Meerschaum database. After running `mrsm stack up -d`, navigate to [http://localhost:3000](http://localhost:3000) to access Grafana.
+
+The default data source is automatically configured to point at the Meerschaum PostgreSQL instance, so you can start building dashboards immediately without any manual setup.

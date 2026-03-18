@@ -1,0 +1,114 @@
+---
+title: "mrsm install"
+description: "Install Meerschaum plugins or Python packages into virtual environments."
+---
+
+## Synopsis
+
+```bash
+mrsm install <subcommand> [arguments] [flags]
+```
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `plugins` | Download and install a plugin from a repository |
+| `packages` | Install PyPI packages into a Meerschaum virtual environment |
+| `required` | Install required packages for installed plugins |
+
+---
+
+## `install plugins`
+
+Download and install a plugin from a Meerschaum repository (default: `mrsm.io`).
+
+```bash
+mrsm install plugins <plugin_name> [-r <repository>]
+```
+
+<ParamField query="plugin_name" type="string" required>
+  Name of the plugin to install.
+</ParamField>
+
+<ParamField query="-r, --repository" type="string">
+  Repository API connector to install from (default: `api:mrsm`).
+</ParamField>
+
+<ParamField query="--skip-deps" type="flag">
+  Skip installing the plugin's dependencies.
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Re-install even if the plugin is already installed.
+</ParamField>
+
+```bash
+# Install the 'noaa' plugin from the default repository
+mrsm install plugins noaa
+
+# Install from a custom repository
+mrsm install plugins noaa -r api:myrepo
+
+# Install without dependencies
+mrsm install plugins myplugin --skip-deps
+```
+
+<Note>
+  The `--instance` flag is ignored for plugin installation. Use `--repository` (`-r`) instead.
+</Note>
+
+---
+
+## `install packages`
+
+Install one or more PyPI packages into the Meerschaum virtual environment (`mrsm` by default).
+
+```bash
+mrsm install packages <package> [<package>...]
+```
+
+<ParamField query="package" type="string" required>
+  One or more PyPI package names to install (e.g. `pandas`, `numpy`).
+</ParamField>
+
+<ParamField query="--venv" type="string">
+  Target virtual environment (default: `mrsm`).
+</ParamField>
+
+```bash
+mrsm install packages pandas numpy
+mrsm install packages requests --venv myplugin
+```
+
+<Tip>
+  Packages are installed with `pip install --upgrade`. The environment is reloaded after installation.
+</Tip>
+
+---
+
+## `install required`
+
+Install the required packages for all installed plugins (or a subset).
+
+Each plugin's packages are installed into its own virtual environment.
+
+```bash
+mrsm install required [<plugin_name>...]
+```
+
+<ParamField query="plugin_name" type="string[]">
+  Plugin(s) to install requirements for. If omitted, installs requirements for all plugins.
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Force reinstallation of requirements.
+</ParamField>
+
+```bash
+# Install required packages for all plugins
+mrsm install required
+
+# Install required packages for specific plugins
+mrsm install required noaa covid
+```

@@ -1,0 +1,176 @@
+---
+title: "Pipes"
+description: "A pipe represents a data stream into a table and the parameters needed to sync new data."
+---
+
+A Meerschaum pipe represents a data stream into a table and the necessary parameters to sync new data. Every pipe maps to a table on an [instance connector](/reference/connectors/instance-connectors) and is identified by three keys.
+
+## The three keys
+
+Pipes are identified by a hierarchy of three primary components:
+
+<CardGroup cols={3}>
+  <Card title="Connector" icon="plug">
+    The data source (e.g. `sql:main`, `plugin:noaa`). Determines how Meerschaum fetches data.
+  </Card>
+  <Card title="Metric" icon="chart-bar">
+    A label describing the contents of the pipe (e.g. `weather`, `energy`).
+  </Card>
+  <Card title="Location" icon="location-dot">
+    An optional label to differentiate pipes that share the same connector and metric.
+  </Card>
+</CardGroup>
+
+Three pipes sharing the same connector (`plugin:noaa`) and metric (`weather`) but different locations would be represented as:
+
+```
+plugin:noaa | weather | clemson
+plugin:noaa | weather | atlanta
+plugin:noaa | weather | charleston
+```
+
+## Creating a pipe
+
+You can create a pipe from the CLI wizard or directly in Python.
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    mrsm bootstrap pipe --shell
+    ```
+    The bootstrap wizard guides you through choosing a connector, metric, location, index columns, and an optional definition. See the [bootstrapping guide](/reference/pipes/bootstrapping) for a full walkthrough.
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import meerschaum as mrsm
+
+    pipe = mrsm.Pipe(
+        'sql:main',      # connector
+        'weather',       # metric
+        'clemson',       # location (optional)
+        instance='sql:local',
+        columns={
+            'datetime': 'timestamp',
+            'id': 'station_id',
+        },
+    )
+    pipe.sync(df)
+    ```
+  </Tab>
+</Tabs>
+
+## Selecting pipes
+
+Use the filter flags `-c`, `-m`, and `-l` to scope commands to specific connectors, metrics, and locations.
+
+```bash
+mrsm show pipes -c plugin:noaa
+mrsm show pipes -m weather
+mrsm show pipes -l clemson atlanta charleston
+```
+
+You can combine flags freely. To select pipes that do *not* match a key, prefix the value with an underscore:
+
+```bash
+# Show all pipes except those with connector sql:legacy
+mrsm show pipes -c _sql:legacy
+```
+
+### Selecting by tag
+
+In addition to the three keys, you can group and filter pipes with [tags](/reference/pipes/tags):
+
+```bash
+mrsm show pipes --tags production
+```
+
+## Parameters
+
+Every pipe has a `parameters` dictionary for storing metadata and configuration. Edit parameters interactively with:
+
+```bash
+mrsm edit pipes -l clemson
+```
+
+Or access them in Python:
+
+```python
+pipe.parameters
+# {'columns': {'datetime': 'timestamp', 'id': 'station_id'}, 'tags': ['production']}
+```
+
+Use `update_parameters()` to merge new keys into the existing parameters and optionally persist them:
+
+```python
+pipe.update_parameters({'custom_key': 'value'}, persist=True)
+```
+
+### The `columns` dictionary
+
+The `columns` key defines the composite primary key used for deduplication and incremental syncing. Keys are index role names; values are column names in your dataset.
+
+```python
+import meerschaum as mrsm
+
+pipe = mrsm.Pipe(
+    'demo', 'temperature',
+    instance='sql:local',
+    columns={
+        'datetime': 'dt',
+        'id': 'station',
+    },
+)
+
+pipe.sync([
+    {'dt': '2024-01-01 00:00:00', 'station': 'KGMU', 'val': 44.1},
+    {'dt': '2024-01-01 00:00:00', 'station': 'KATL', 'val': 48.3},
+])
+print(pipe.get_data())
+#           dt station   val
+# 0 2024-01-01    KATL  48.3
+# 1 2024-01-01    KGMU  44.1
+```
+
+<Tip>
+  Specifying a `datetime` index enables incremental syncing — Meerschaum uses the most recent synced timestamp to bound each fetch, avoiding full-table scans.
+</Tip>
+
+<Note>
+  The `datetime` index may be an integer column. Set its `dtype` to `int` under `dtypes` to use it as the datetime axis.
+
+  ```yaml
+  columns:
+    datetime: RowNumber
+  dtypes:
+    RowNumber: int
+  ```
+</Note>
+
+### The `indices` dictionary
+
+The `indices` key (alias `indexes`) creates additional database indices for performance tuning. Unlike `columns`, which enforces uniqueness, `indices` creates supplemental multi-column indices.
+
+```yaml
+columns:
+  datetime: ts
+  id: station
+indices:
+  geo: ['city', 'state', 'country']
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Bootstrapping" icon="rocket" href="/reference/pipes/bootstrapping">
+    Create your first pipe with the setup wizard.
+  </Card>
+  <Card title="Syncing" icon="rotate" href="/reference/pipes/syncing">
+    Understand how the fetch, filter, and upsert stages work.
+  </Card>
+  <Card title="Parameters" icon="sliders" href="/reference/pipes/parameters">
+    Full reference for all parameters dictionary keys.
+  </Card>
+  <Card title="Tags" icon="tag" href="/reference/pipes/tags">
+    Group pipes with custom tags for easier management.
+  </Card>
+</CardGroup>

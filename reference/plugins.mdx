@@ -1,0 +1,111 @@
+---
+title: "Plugins"
+description: "Extend Meerschaum with custom data sources, actions, connectors, and API endpoints using Python plugins."
+---
+
+Meerschaum plugins let you ingest any data source into [pipes](/reference/pipes) as well as defining custom actions, connectors, API endpoints, Dash apps, and more.
+
+## Quickstart
+
+Run `bootstrap plugin` to get started:
+
+```bash
+mrsm bootstrap plugin
+```
+
+Or create a plugin manually in three steps:
+
+<Steps>
+  <Step title="Create your plugin file">
+    Create a new file `~/.config/meerschaum/plugins/example.py` (Windows: `%APPDATA%\Meerschaum\plugins\example.py`).
+  </Step>
+  <Step title="Paste this starter code">
+    ```python
+    # ~/.config/meerschaum/plugins/example.py
+
+    __version__ = '0.0.1'
+    required = []
+
+    def register(pipe, **kw):
+        return {
+            'columns': {
+                'datetime': 'dt',
+                'id': 'id',
+                'value': 'val',
+            }
+        }
+
+    def fetch(pipe, **kw):
+        import datetime, random
+        return [{
+            'dt': datetime.datetime.utcnow(),
+            'id': 1,
+            'val': random.randint(0, 100),
+        }]
+    ```
+  </Step>
+  <Step title="Register and sync a pipe">
+    ```bash
+    mrsm register pipe -c plugin:example -m test
+    mrsm sync pipes -c plugin:example
+    ```
+  </Step>
+</Steps>
+
+## Why use plugins?
+
+Plugins are just Python modules, so the sky is the limit. They provide these benefits over regular Python packages:
+
+<CardGroup cols={1}>
+  <Card title="No boilerplate" icon="file-code">
+    You might only need to define a short `fetch()` function. Skip `setup.py` / `pyproject.toml` and write only what you need.
+  </Card>
+  <Card title="Fearless refactoring" icon="arrows-rotate">
+    Plugins are self-contained and portable, which means you can safely refactor without worrying about breaking imports elsewhere in your codebase.
+  </Card>
+  <Card title="Core functionality for free" icon="gift">
+    Writing your module as a plugin unlocks connector management, date-bounded syncing, integration with the Web Console, and the Meerschaum Compose workflow.
+  </Card>
+</CardGroup>
+
+## What can plugins do?
+
+<CardGroup cols={2}>
+  <Card title="Data plugins" icon="database" href="/reference/plugins/types-of-plugins">
+    Fetch or sync data from any source into pipes. Just return a DataFrame and Meerschaum handles deduplication and incremental updates.
+  </Card>
+  <Card title="Action plugins" icon="terminal" href="/reference/plugins/types-of-plugins">
+    Add custom commands to the `mrsm` CLI. Actions integrate into the Meerschaum system and can run as background jobs.
+  </Card>
+  <Card title="Connector plugins" icon="plug" href="/reference/plugins/writing-plugins">
+    Define entirely new connector types using `@make_connector`. Users can then create and manage connectors of your new type.
+  </Card>
+  <Card title="API plugins" icon="webhook" href="/reference/plugins/types-of-plugins">
+    Extend the Meerschaum web API with custom FastAPI endpoints using `@api_plugin`.
+  </Card>
+</CardGroup>
+
+## Plugin management commands
+
+| Command | Description |
+|---|---|
+| `mrsm bootstrap plugin` | Interactive wizard to create a new plugin |
+| `mrsm install plugins <name>` | Install a plugin from a repository |
+| `mrsm register plugin <name>` | Publish a plugin to a repository |
+| `mrsm install required <name>` | Install a plugin's required packages |
+| `mrsm setup plugins <name>` | Run a plugin's `setup()` function |
+| `mrsm show plugins` | List installed plugins |
+
+## Learn more
+
+<CardGroup cols={2}>
+  <Card title="Writing plugins" icon="pen" href="/reference/plugins/writing-plugins">
+    Step-by-step guide to writing your first plugin, with full function references and keyword argument documentation.
+  </Card>
+  <Card title="Types of plugins" icon="shapes" href="/reference/plugins/types-of-plugins">
+    Understand the differences between fetch, sync, action, connector, API, and library plugins.
+  </Card>
+  <Card title="Plugin repositories" icon="cloud-upload" href="/reference/plugins/repositories">
+    Install plugins from the public repository or publish your own plugins to private repositories.
+  </Card>
+</CardGroup>

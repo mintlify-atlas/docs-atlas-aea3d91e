@@ -1,122 +1,140 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Meerschaum",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#3466b9",
+    "light": "#8e391e",
+    "dark": "#c1c6cd"
   },
   "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/bmeares/Meerschaum"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/bmeares/Meerschaum"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "get-started/installation",
+              "get-started/bootstrap",
+              "get-started/start-api",
+              "get-started/compose-projects"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "reference/pipes",
+              "reference/pipes/bootstrapping",
+              "reference/pipes/syncing",
+              "reference/pipes/parameters",
+              "reference/pipes/tags"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Connectors",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "reference/connectors",
+              "reference/connectors/sql-connectors",
+              "reference/connectors/api-connectors",
+              "reference/connectors/instance-connectors",
+              "reference/connectors/other-connectors"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Plugins",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "reference/plugins",
+              "reference/plugins/writing-plugins",
+              "reference/plugins/types-of-plugins",
+              "reference/plugins/repositories"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "reference/actions",
+              "reference/background-jobs",
+              "reference/stack",
+              "reference/compose",
+              "reference/environment",
+              "reference/meerschaum-portable"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "reference/api-instance",
+              "reference/data-analysis-tools"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "faq",
+              "changelog"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Python API",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/overview",
+              "api-reference/pipe",
+              "api-reference/connector",
+              "api-reference/plugin",
+              "api-reference/job",
+              "api-reference/get-pipes",
+              "api-reference/get-connector"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "CLI Reference",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "cli/overview",
+              "cli/sync",
+              "cli/register",
+              "cli/bootstrap",
+              "cli/show",
+              "cli/edit",
+              "cli/delete",
+              "cli/install",
+              "cli/start",
+              "cli/stop",
+              "cli/stack"
+            ]
+          },
+          {
+            "group": "REST API",
+            "pages": [
+              "rest-api/overview",
+              "rest-api/pipes",
+              "rest-api/plugins",
+              "rest-api/jobs",
+              "rest-api/users",
+              "rest-api/connectors"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

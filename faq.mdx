@@ -1,0 +1,117 @@
+---
+title: "Frequently Asked Questions"
+description: "Common questions and troubleshooting tips for Meerschaum."
+---
+
+Below is a list of common questions and issues you may encounter. If you have suggestions, please join the [FAQ Suggestions discussion on GitHub](https://github.com/bmeares/Meerschaum/discussions/46).
+
+<AccordionGroup>
+  <Accordion title="How do I upgrade to the latest version?">
+    Install the latest version from PyPI:
+
+    ```bash
+    pip install --upgrade meerschaum
+    ```
+
+    Or use the built-in upgrade command, which installs the latest version from PyPI and pulls the latest Docker images:
+
+    ```bash
+    mrsm upgrade mrsm
+    ```
+  </Accordion>
+
+  <Accordion title="`mrsm` doesn't work!">
+    You can invoke Meerschaum directly with:
+
+    ```bash
+    python -m meerschaum
+    ```
+
+    Check that your `PATH` includes scripts installed by `pip`, such as `~/.local/bin`:
+
+    ```bash
+    export PATH=$PATH:~/.local/bin
+    ```
+  </Accordion>
+
+  <Accordion title="How do I turn off emoji and/or colors?">
+    Color and emoji settings are in the `system` config file under the `formatting` section, which you can edit with:
+
+    ```bash
+    mrsm edit config system
+    ```
+
+    Alternatively, install the `color` plugin to toggle these values interactively:
+
+    ```bash
+    mrsm install plugins color
+    mrsm color
+    ```
+
+    Use `color unicode` or `color ansi` to toggle specific settings. Note that disabling ANSI may not completely eliminate all ANSI characters.
+  </Accordion>
+
+  <Accordion title="Can I use Meerschaum in my scripts?">
+    Yes. Most commands are scriptable. When executing Meerschaum actions in a script, add the following flags:
+
+    - `--nopretty` — outputs JSON representations instead of formatted tables (for commands like `show pipes`)
+    - `--noask` — chooses default values for all prompts (e.g., skips destructive actions)
+    - `--yes` or `--force` — answers `yes` to all confirmation dialogues
+
+    <Note>
+      Commands like `bootstrap` and `edit` are interactive and not safe for scripting.
+    </Note>
+
+    You can also access actions directly via the `meerschaum.actions.actions` dictionary in Python, or turn your script into a [Meerschaum action plugin](/reference/plugins) for deeper integration.
+  </Accordion>
+
+  <Accordion title="Connectors don't work for my database flavor!">
+    Connectors use SQLAlchemy engines under the hood. Supported flavors include: `mssql`, `mysql`, `oracle`, `postgresql`, `sqlite`, `duckdb`, `citus`, `cockroachdb`, `mariadb`, `timescaledb`.
+
+    For Microsoft SQL Server or Oracle SQL, ensure you have the appropriate drivers installed. Use this utility script to automatically install them on Ubuntu/Debian or Fedora/CentOS/RHEL:
+
+    ```bash
+    curl -sf -L https://raw.githubusercontent.com/bmeares/Meerschaum/main/scripts/drivers.sh -o drivers.sh
+    chmod +x drivers.sh
+    sudo ./drivers.sh
+    ```
+
+    Manual driver links:
+    - [Microsoft SQL Server ODBC driver](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server)
+    - [Oracle SQL ODBC driver](https://docs.oracle.com/en/database/oracle/oracle-database/19/cwlin/installing-odbc-drivers-for-linux-x86-64.html)
+
+    For `pyodbc` to install correctly, you may also need `g++` and `gcc`:
+
+    ```bash
+    sudo apt-get install -y g++ gcc
+    ```
+  </Accordion>
+
+  <Accordion title="How do I completely uninstall Meerschaum?">
+    Follow these steps to fully remove Meerschaum:
+
+    <Steps>
+      <Step title="Take down the stack">
+        ```bash
+        mrsm stack down -v
+        ```
+
+        Optionally also remove Docker images:
+
+        ```bash
+        docker image rm bmeares/meerschaum
+        ```
+      </Step>
+      <Step title="Uninstall via pip">
+        ```bash
+        pip uninstall meerschaum
+        ```
+      </Step>
+      <Step title="Delete configuration directory">
+        **Linux/macOS:** `~/.config/meerschaum/`
+
+        **Windows:** `%APPDATA%\Meerschaum\`
+      </Step>
+    </Steps>
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,430 @@
+---
+title: "Parameters"
+description: "Complete reference for all keys in the pipe parameters dictionary."
+---
+
+Every pipe has a `parameters` dictionary that stores configuration and metadata. Meerschaum reads certain reserved keys to control sync behavior; all other keys are available for your own use.
+
+<Tip>
+  Store plugin-specific configuration under a custom top-level key in `parameters`. It is a common pattern to namespace your configuration under your plugin's name (e.g. `parameters['myplugin']`).
+
+  ```python
+  pipe = mrsm.Pipe('a', 'b', parameters={'a': 1})
+  pipe.update_parameters({'a': 2}, persist=True)
+
+  print(mrsm.Pipe('a', 'b').parameters['a'])
+  # 2
+  ```
+</Tip>
+
+## Dynamic symlinks
+
+You can reference attributes of other pipes at runtime using the `{{ Pipe(...) }}` syntax. These expressions are resolved each time `Pipe.parameters` is accessed.
+
+```python
+import json
+import meerschaum as mrsm
+
+some_pipe = mrsm.Pipe(
+    'demo', 'symlink',
+    instance='sql:memory',
+    parameters={
+        'target': 'some_table',
+        'columns': {'datetime': 'id', 'id': 'id'},
+        'custom': {'stations': ['KATL', 'KGMU', 'KCEU']},
+    },
+)
+some_pipe.register()
+
+pipe = mrsm.Pipe(
+    'demo', 'symlink', 'child',
+    instance='sql:memory',
+    parameters={
+        'target': "{{ Pipe('demo', 'symlink', instance='sql:memory').target }}",
+        'columns': "{{ Pipe('demo', 'symlink', instance='sql:memory').columns }}",
+        'custom': "{{ Pipe('demo', 'symlink', instance='sql:memory').parameters['custom'] }}",
+        'value': 123,
+        'self_value': "{{ self.parameters['value'] }}",
+    },
+)
+
+print(json.dumps(pipe.parameters, indent=4))
+# {
+#     "target": "some_table",
+#     "columns": {"datetime": "id", "id": "id"},
+#     "custom": {"stations": ["KATL", "KGMU", "KCEU"]},
+#     "value": 123,
+#     "self_value": 123
+# }
+```
+
+---
+
+## `autoincrement`
+
+When a `primary` index is defined and `autoincrement` is `True`, the primary key column is created as an auto-incrementing integer.
+
+<Warning>
+  `autoincrement` is only supported on pipes stored in `sql` instances.
+</Warning>
+
+---
+
+## `autotime`
+
+When `autotime` is `True`, Meerschaum automatically adds the current timestamp to each document synced. For pipes with an integer `datetime` dtype, the value is the number of `precision` units since the Unix epoch.
+
+On pipes without a `datetime` axis, `autotime` adds a column named `ts` (configurable at `pipes.autotime.column_name_if_datetime_missing`).
+
+```python
+import meerschaum as mrsm
+
+pipe = mrsm.Pipe(
+    'demo', 'autotime',
+    instance='sql:memory',
+    autotime=True,
+    columns={'datetime': 'timestamp_utc'},
+)
+pipe.sync("reading:100.1")
+
+df = pipe.get_data()
+print(df)
+#    reading                    timestamp_utc
+# 0    100.1 2025-07-18 16:47:12.145056+00:00
+```
+
+---
+
+## `columns`
+
+The `columns` dictionary maps index role names to column names in your dataset. These columns form the composite primary key used for deduplication and incremental syncing.
+
+```yaml
+columns:
+  datetime: "ts"
+  id: "stationId"
+```
+
+<Note>
+  Index columns must be immutable and unique as a collection.
+</Note>
+
+### The `datetime` index
+
+The `datetime` column is used as the time axis for incremental syncing, bounding fetch queries and hypertable partitioning. You may designate an integer column as the `datetime` index by setting its `dtype` to `int`.
+
+### The `primary` index
+
+The `primary` column is created as the table's primary key. When `autoincrement` is `True`, it becomes an auto-incrementing integer. You can designate the same column as both `datetime` and `primary`.
+
+---
+
+## `dtypes`
+
+Explicitly set column data types to prevent inference errors and schema drift.
+
+```python
+import meerschaum as mrsm
+
+pipe = mrsm.Pipe(
+    'demo', 'dtypes',
+    temporary=True,
+    instance='sql:local',
+    autotime=True,
+    columns={'datetime': 'ts', 'id': 'id'},
+    dtypes={
+        'id': 'int32[pyarrow]',
+        'ts': 'datetime64[ms, UTC]',
+        'val': 'float',
+    },
+)
+pipe.sync("id:1,val:2.2")
+
+print(pipe.get_data().dtypes)
+# id          int32[pyarrow]
+# val                float64
+# ts     datetime64[ms, UTC]
+```
+
+If not explicitly set, dtypes are inferred from the first sync. Conflicting dtypes on subsequent syncs will alter the column type unless [`static`](#static) is `True`.
+
+### Supported data types
+
+| Meerschaum dtype | Examples | Python / Pandas types | SQL notes |
+|---|---|---|---|
+| `int` | `1` | `int`, `Int64`, `int64[pyarrow]` | `BIGINT`, `INT` |
+| `float` | `1.1` | `float`, `float64`, `float64[pyarrow]` | `DOUBLE PRECISION`, `FLOAT` |
+| `string` | `'foo'` | `str`, `string[python]` | `TEXT`, `NVARCHAR(MAX)` (MSSQL) |
+| `datetime` (tz-aware) | `Timestamp('2024-12-26 00:00:00+0000', tz='UTC')` | `datetime64[us, UTC]` | `TIMESTAMPTZ`, `DATETIMEOFFSET` |
+| `datetime64[precision]` (tz-naive) | `Timestamp('2025-07-23 00:00:00')` | `datetime64[us]` | `TIMESTAMP` |
+| `date` | `date(2025, 1, 1)` | `date`, `date32[day][pyarrow]` | `DATE` |
+| `numeric` | `Decimal('1.000')` | `Decimal` | `NUMERIC`, `DECIMAL` |
+| `uuid` | `UUID('df257...')` | `UUID` | `UUID`, `UNIQUEIDENTIFIER` (MSSQL) |
+| `bool` | `True` | `boolean[pyarrow]` | `BOOL`, `BIT` |
+| `json` | `{"foo": "bar"}` | `dict`, `list` | `JSONB` (PostgreSQL), `TEXT` otherwise |
+| `bytes` | `b'foo'` | `bytes`, `binary[pyarrow]` | `BYTEA`, `BLOB`, `VARBINARY` |
+| `geometry` | `Point`, `MultiLineString` | `shapely.Point` | `GEOMETRY`, `GEOGRAPHY` (PostGIS) |
+
+---
+
+## `enforce`
+
+Controls whether incoming data is coerced to match configured dtypes (default `True`). Set to `False` to skip dtype enforcement for performance-sensitive workloads.
+
+<Warning>
+  Some instance connectors (e.g. SQLite) behave unexpectedly with `enforce=False`.
+</Warning>
+
+---
+
+## `fetch`
+
+Contains parameters for the [fetch stage](/reference/pipes/syncing) of syncing.
+
+<AccordionGroup>
+  <Accordion title="fetch.backtrack_minutes">
+    Minutes of overlap to request when fetching new rows. Defaults to `1440`. See [Backtracking](/reference/pipes/syncing#backtracking).
+
+    ```yaml
+    fetch:
+      backtrack_minutes: 1440
+    ```
+  </Accordion>
+
+  <Accordion title="fetch.definition">
+    The base SQL query executed when fetching new rows. Aliased as `sql` or `query`. Only applies to pipes with `SQLConnector` sources.
+
+    ```yaml
+    fetch:
+      definition: |-
+        SELECT *
+        FROM foo
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## `hypertable`
+
+Set to `False` to prevent the target table from being created as a TimescaleDB hypertable.
+
+---
+
+## `indices`
+
+The `indices` dictionary (alias `indexes`) creates supplemental database indices for query performance. The `columns` indices are included by default; use `indices` to add multi-column indices beyond the primary key.
+
+```yaml
+connector: sql:main
+metric: temperature
+columns:
+  datetime: ts
+  id: station
+indices:
+  geo: ['city', 'state', 'country']
+upsert: true
+```
+
+---
+
+## `mixed_numerics`
+
+When `True` (default), integer columns are promoted to `numeric` dtype if float values are synced into them. Set to `False` to prevent schema changes when mixing integer and float data.
+
+---
+
+## `null_indices`
+
+When `True` (default), allows null values in index columns. Set to `False` for a performance improvement when null index values are not expected.
+
+---
+
+## `precision`
+
+Determines the timestamp precision used by `autotime`. Setting `precision` as a string is shorthand for `precision.unit`.
+
+| Unit | Aliases | Datetime example | Integer example |
+|---|---|---|---|
+| `nanosecond` | `ns` | `2025-07-18 16:02:18.701925991` | `1752854538701925991` |
+| `microsecond` | `us` | `2025-07-18 16:02:18.701925` | `1752854538701925` |
+| `millisecond` | `ms` | `2025-07-18 16:02:18.701` | `1752854538701` |
+| `second` | `sec`, `s` | `2025-07-18 16:02:18` | `1752854538` |
+| `minute` | `min`, `m` | `2025-07-18 16:02` | `29214242` |
+| `hour` | `hr`, `h` | `2025-07-18 16:00` | `486904` |
+| `day` | `d`, `D` | `2025-07-18` | `20287` |
+
+### precision as a dictionary
+
+```python
+pipe = mrsm.Pipe(
+    'demo', 'precision', 'interval',
+    instance='sql:memory',
+    autotime=True,
+    columns={'datetime': 'ts'},
+    precision={
+        'unit': 'minute',
+        'interval': 15,   # Round to 15-minute intervals
+        'round_to': 'down',  # 'down' (default), 'up', or 'closest'
+    },
+)
+pipe.sync("a:1")
+
+df = pipe.get_data()
+print(df)
+#    a                        ts
+# 0  1 2025-07-23 13:15:00+00:00
+```
+
+| Key | Description |
+|---|---|
+| `precision.unit` | The precision unit (see table above). |
+| `precision.interval` | Rounding interval size (default `1`). |
+| `precision.round_to` | Rounding direction: `down` (default), `up`, or `closest`. |
+
+---
+
+## `reference`
+
+A pipe may inherit base parameters from another pipe. Set `reference` to the keys of the parent pipe; additional keys in the child override the parent.
+
+```python
+import meerschaum as mrsm
+
+base_pipe = mrsm.Pipe(
+    'demo', 'reference', 'parent',
+    instance='sql:memory',
+    columns={'datetime': 'ts', 'id': 'id'},
+    parameters={'custom': {'foo': 'bar', 'color': 'red'}},
+)
+base_pipe.register()
+
+pipe = mrsm.Pipe(
+    'demo', 'reference', 'child',
+    instance='sql:memory',
+    parameters={
+        'reference': {
+            'connector': 'demo',
+            'metric': 'reference',
+            'location': 'parent',
+            'instance': 'sql:memory',
+        },
+        'custom': {'color': 'blue'},  # Overrides parent's color
+    },
+)
+
+print(pipe.parameters)
+# {'custom': {'foo': 'bar', 'color': 'blue'}, 'columns': {'datetime': 'ts', 'id': 'id'}}
+```
+
+---
+
+## `schema`
+
+Overrides the connector's configured database schema for this pipe. Ignored on SQLite. Useful when multiple schemas exist on the same database.
+
+```yaml
+schema: production
+```
+
+---
+
+## `sql` / `query`
+
+Aliases for `fetch.definition`.
+
+---
+
+## `static`
+
+When `True`, prevents new columns from being added and existing columns from changing types. Use this in production environments where the schema is externally managed.
+
+---
+
+## `tags`
+
+A list of [tags](/reference/pipes/tags) for the pipe:
+
+```yaml
+tags:
+  - production
+  - foo
+```
+
+---
+
+## `upsert`
+
+Enables high-performance syncs by combining inserts and updates into a single transaction. Requires unique constraints on the index columns.
+
+<Warning>
+  Ensure your instance connector supports upserts before enabling this option (e.g. `SQLConnector`).
+</Warning>
+
+```python
+import meerschaum as mrsm
+
+pipe = mrsm.Pipe(
+    'demo', 'upsert',
+    instance='sql:local',
+    columns=['datetime', 'id'],
+    parameters={'upsert': True},
+)
+
+mrsm.pprint(
+    pipe.sync([
+        {'datetime': '2023-01-01', 'id': 1, 'val': 1.1},
+        {'datetime': '2023-01-02', 'id': 2, 'val': 2.2},
+    ])
+)
+# Upserted 2 rows.
+```
+
+---
+
+## `verify`
+
+Contains parameters for [verification syncs](/reference/pipes/syncing#verification-syncs).
+
+<AccordionGroup>
+  <Accordion title="verify.chunk_minutes">
+    The size of each verification chunk in minutes.
+
+    ```python
+    import meerschaum as mrsm
+
+    pipe = mrsm.Pipe(
+        'foo', 'bar',
+        parameters={
+            'verify': {
+                'chunk_minutes': (1440 * 7),
+            },
+        },
+    )
+    ```
+  </Accordion>
+
+  <Accordion title="verify.bound_days (and aliases)">
+    The maximum lookback interval for unbounded verification syncs (default 366 days). Aliases in priority order:
+
+    - `bound_minutes`
+    - `bound_hours`
+    - `bound_days`
+    - `bound_weeks`
+    - `bound_years`
+    - `bound_seconds`
+
+    ```python
+    import meerschaum as mrsm
+
+    pipe = mrsm.Pipe(
+        'foo', 'bar',
+        parameters={
+            'verify': {
+                'bound_days': 366,
+            },
+        },
+    )
+    ```
+  </Accordion>
+</AccordionGroup>

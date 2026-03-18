@@ -1,0 +1,168 @@
+---
+title: "mrsm start"
+description: "Start subsystems such as the API server, background jobs, and the GUI."
+---
+
+## Synopsis
+
+```bash
+mrsm start <subcommand> [arguments] [flags]
+```
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `api` | Start the FastAPI REST server |
+| `jobs` | Create or resume background jobs |
+| `gui` | Start the desktop GUI application |
+| `webterm` | Start the web-based terminal |
+| `connectors` | Poll connectors until a connection is established |
+| `pipeline` | Run a series of actions as a single pipeline |
+
+---
+
+## `start api`
+
+Start the Meerschaum API server (FastAPI/Uvicorn).
+
+```bash
+mrsm start api [-p <port>] [-w <workers>]
+```
+
+<ParamField query="-p, --port" type="int">
+  Port to bind the API server to.
+</ParamField>
+
+<ParamField query="-w, --workers" type="int">
+  Number of Uvicorn worker processes. Defaults to the number of CPU cores (or `1` on Android).
+</ParamField>
+
+```bash
+mrsm start api -p 8000
+mrsm start api -p 8000 -w 4 -d
+```
+
+---
+
+## `start jobs`
+
+Create a new background job from an action command, or resume a stopped/paused job.
+
+```bash
+mrsm start jobs [<job_name> | <action_command>...] [--name <name>] [-e <executor>]
+```
+
+<ParamField query="action_command" type="string[]">
+  The Meerschaum action to run as a background job (e.g. `sync pipes --loop`).
+</ParamField>
+
+<ParamField query="--name" type="string">
+  Name for the new job. A random name (e.g. `happy_seal`) is generated if omitted.
+</ParamField>
+
+<ParamField query="-e, --executor-keys" type="string">
+  Executor for the job (`local`, `systemd`, `api:myserver`).
+</ParamField>
+
+<ParamField query="--rm" type="flag">
+  Delete the job automatically after it completes.
+</ParamField>
+
+```bash
+# Create a new job that syncs pipes in a loop
+mrsm start jobs sync pipes --loop
+
+# Assign a custom job name
+mrsm start api --daemon --name api-server
+
+# Resume a stopped job by name
+mrsm start jobs happy_seal
+
+# Resume via --name flag
+mrsm start jobs --name happy_seal
+```
+
+<Note>
+  If the action matches an existing job name AND is also a valid action (e.g. `sync`), Meerschaum will attempt to resume the job first. Pass additional arguments to force job creation.
+</Note>
+
+---
+
+## `start gui`
+
+Open the Meerschaum desktop GUI application (requires `pywebview`).
+
+```bash
+mrsm start gui [-p <port>] [-i <instance>]
+```
+
+---
+
+## `start webterm`
+
+Start the Meerschaum web terminal (Tornado + xterm.js).
+
+```bash
+mrsm start webterm [-p <port>] [--host <host>] [-i <instance>]
+```
+
+<ParamField query="-p, --port" type="int">
+  Port to bind the webterm to (default from config, typically `8765`). Use `-f` to auto-select the next available port.
+</ParamField>
+
+<ParamField query="--host" type="string">
+  Host interface to bind to (default: `127.0.0.1`).
+</ParamField>
+
+<ParamField query="-i, --instance" type="string">
+  The default Meerschaum instance for the webterm shell.
+</ParamField>
+
+---
+
+## `start connectors`
+
+Poll one or more connectors until a connection can be established.
+
+```bash
+mrsm start connectors <type:label> [...] [--min-seconds <n>]
+```
+
+<ParamField query="connector_keys" type="string[]" required>
+  Connector keys to connect to.
+</ParamField>
+
+<ParamField query="--min-seconds" type="int" default="3">
+  Seconds to wait between retry attempts.
+</ParamField>
+
+```bash
+mrsm start connectors sql:prod api:main --min-seconds 5
+```
+
+---
+
+## `start pipeline`
+
+Run multiple chained Meerschaum actions as a single pipeline. This is the underlying mechanism for `+` and `:` syntax.
+
+```bash
+mrsm start pipeline [...] [--loop] [--min-seconds <n>] [--timeout-seconds <n>]
+```
+
+<ParamField query="--loop" type="flag">
+  Run the pipeline continuously.
+</ParamField>
+
+<ParamField query="--min-seconds" type="number" default="1.0">
+  Seconds to sleep between pipeline iterations.
+</ParamField>
+
+<ParamField query="--timeout-seconds" type="int">
+  Maximum seconds allowed for the pipeline before it is cancelled.
+</ParamField>
+
+```bash
+mrsm sync pipes -i sql:local + sync pipes -i sql:main : --loop
+```

@@ -1,0 +1,240 @@
+---
+title: "Jobs Endpoints"
+description: "REST API endpoints for managing Meerschaum background jobs and streaming logs."
+---
+
+All job endpoints are prefixed with `/mrsm/jobs`.
+Log endpoints are prefixed with `/mrsm/logs`.
+
+## List Jobs
+
+<ResponseField name="GET /mrsm/jobs" type="object">
+  Return metadata for all current jobs.
+</ResponseField>
+
+**Required scope:** `jobs:read`
+
+<CodeGroup>
+```bash curl
+curl http://localhost:8000/mrsm/jobs \
+  -H "Authorization: Bearer <token>"
+```
+
+```python Python
+import requests
+
+resp = requests.get(
+    "http://localhost:8000/mrsm/jobs",
+    headers={"Authorization": "Bearer <token>"},
+)
+for name, meta in resp.json().items():
+    print(name, meta["status"])
+```
+</CodeGroup>
+
+**Example response:**
+
+```json
+{
+  "happy_seal": {
+    "sysargs": ["sync", "pipes", "--loop"],
+    "result": null,
+    "restart": false,
+    "status": "running",
+    "daemon": {
+      "status": "running",
+      "pid": 12345,
+      "properties": {}
+    }
+  }
+}
+```
+
+---
+
+## Get a Single Job
+
+<ResponseField name="GET /mrsm/jobs/{name}" type="object">
+  Return metadata for a single job.
+</ResponseField>
+
+**Required scope:** `jobs:read`
+
+```bash
+curl http://localhost:8000/mrsm/jobs/happy_seal \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Check Job Exists
+
+<ResponseField name="GET /mrsm/jobs/{name}/exists" type="boolean">
+  Return `true` if the job exists.
+</ResponseField>
+
+**Required scope:** `jobs:read`
+
+---
+
+## Create a Job
+
+<ResponseField name="POST /mrsm/jobs/{name}" type="SuccessTuple">
+  Create and start a new background job.
+</ResponseField>
+
+**Required scope:** `jobs:execute`, `jobs:write`
+
+<CodeGroup>
+```bash curl
+curl -X POST \
+  http://localhost:8000/mrsm/jobs/my-sync-job \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '["sync", "pipes", "--loop"]'
+```
+
+```python Python
+import requests
+
+resp = requests.post(
+    "http://localhost:8000/mrsm/jobs/my-sync-job",
+    headers={"Authorization": "Bearer <token>"},
+    json=["sync", "pipes", "--loop"],
+)
+print(resp.json())  # [True, "Started job 'my-sync-job'."]
+```
+</CodeGroup>
+
+<ParamField body="metadata" type="array | object" required>
+  Either a list of sysargs (e.g. `["sync", "pipes", "--loop"]`) or a dictionary with `sysargs` and optional `properties` keys.
+</ParamField>
+
+**Example response:**
+
+```json
+[true, "Started job 'my-sync-job'."]
+```
+
+<Note>
+  If a job with the given name already exists, the server returns HTTP `409 Conflict`.
+</Note>
+
+---
+
+## Start a Stopped Job
+
+<ResponseField name="POST /mrsm/jobs/{name}/start" type="SuccessTuple">
+  Start a job that is currently stopped or paused.
+</ResponseField>
+
+**Required scope:** `jobs:execute`
+
+```bash
+curl -X POST \
+  http://localhost:8000/mrsm/jobs/happy_seal/start \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Stop a Job
+
+<ResponseField name="POST /mrsm/jobs/{name}/stop" type="SuccessTuple">
+  Stop a running job.
+</ResponseField>
+
+**Required scope:** `jobs:execute`
+
+```bash
+curl -X POST \
+  http://localhost:8000/mrsm/jobs/happy_seal/stop \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Pause a Job
+
+<ResponseField name="POST /mrsm/jobs/{name}/pause" type="SuccessTuple">
+  Pause a running job.
+</ResponseField>
+
+**Required scope:** `jobs:execute`, `jobs:pause`
+
+```bash
+curl -X POST \
+  http://localhost:8000/mrsm/jobs/happy_seal/pause \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Delete a Job
+
+<ResponseField name="DELETE /mrsm/jobs/{name}" type="SuccessTuple">
+  Delete a job and its associated data.
+</ResponseField>
+
+**Required scope:** `jobs:delete`
+
+```bash
+curl -X DELETE \
+  http://localhost:8000/mrsm/jobs/happy_seal \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Get Stop Time
+
+<ResponseField name="GET /mrsm/jobs/{name}/stop_time" type="string | null">
+  Return the timestamp when the job was last manually stopped.
+</ResponseField>
+
+**Required scope:** `jobs:read`
+
+---
+
+## Get Logs (HTTP)
+
+<ResponseField name="GET /mrsm/logs/{name}" type="string">
+  Return the full log text for a job.
+</ResponseField>
+
+**Required scope:** `jobs:read`, `logs:read`
+
+```bash
+curl http://localhost:8000/mrsm/logs/happy_seal \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## Stream Logs (WebSocket)
+
+<ResponseField name="WS /mrsm/logs/{name}/ws" type="WebSocket">
+  Stream log output from a job in real time over a WebSocket.
+</ResponseField>
+
+Authentication is performed by sending the bearer token as the first WebSocket message.
+
+```python
+import asyncio
+import websockets
+
+async def stream_logs():
+    uri = "ws://localhost:8000/mrsm/logs/happy_seal/ws"
+    async with websockets.connect(uri) as ws:
+        # First message must be the bearer token
+        await ws.send("eyJhbGci...")
+        async for message in ws:
+            print(message)
+
+asyncio.run(stream_logs())
+```
+
+The server sends:
+- Log lines as plain text strings
+- A stdin prompt message when the job is blocking on input
+- A stop message followed by the `SuccessTuple` result when the job finishes

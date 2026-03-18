@@ -1,0 +1,143 @@
+---
+title: "Installation"
+description: "Install Meerschaum on any platform with pip, manage dependencies, and configure environment variables."
+---
+
+Meerschaum supports Python 3.8 and above and runs on Linux, macOS, and Windows.
+
+## Install from PyPI
+
+The standard installation uses pip:
+
+```bash
+pip install -U --user meerschaum
+```
+
+This installs two CLI entry points: `mrsm` and `meerschaum`. If `~/.local/bin/` is not in your `PATH`, invoke Meerschaum directly with:
+
+```bash
+python -m meerschaum
+```
+
+## Optional dependency groups
+
+Meerschaum auto-installs packages into a virtual environment as you use features. You can pre-install dependency groups yourself to avoid the first-run delay.
+
+**Install all API dependencies at once:**
+
+```bash
+python -m meerschaum upgrade packages api -y
+```
+
+**Install into your own environment** by referencing the group name as a pip extra:
+
+```bash
+pip install -U "meerschaum[api]"
+```
+
+Common extras include `api` (FastAPI, uvicorn, gunicorn) and `dash` (the web dashboard).
+
+## Verify the installation
+
+After installing, confirm the CLI is available:
+
+```bash
+mrsm --version
+```
+
+Then open the interactive Meerschaum shell:
+
+```bash
+mrsm
+```
+
+You should see the Meerschaum prompt. Run `show pipes` to confirm connectivity to the default instance. A fresh install returns:
+
+```
+🎉 No pipes to show.
+```
+
+## Start the Docker stack
+
+Meerschaum ships with a pre-configured Docker Compose stack that starts a TimescaleDB instance (`sql:main`) and Grafana.
+
+```bash
+mrsm stack up -d
+```
+
+<Note>You need [Docker](https://docs.docker.com/engine/install/) to run the stack. The stack starts `sql:main` as the default instance connector.</Note>
+
+To start only specific services (for example, the database and Grafana):
+
+```bash
+mrsm stack up -d db grafana
+```
+
+## Use a built-in SQLite database
+
+If you don't have Docker or prefer a lightweight setup, Meerschaum includes a built-in SQLite database accessible as `sql:local`:
+
+```bash
+mrsm register pipe -c plugin:noaa -m weather -l atl -i sql:local
+```
+
+Pass `-i sql:local` to any command to target the local SQLite file instead of `sql:main`.
+
+## Connect to your own database
+
+Create a connector for an existing database with the bootstrap wizard:
+
+```bash
+mrsm bootstrap connector
+```
+
+Or define a connector with an environment variable — no config file editing required:
+
+```bash
+MRSM_SQL_FOO=sqlite:////tmp/foo.db \
+  python -m meerschaum start connector sql:foo
+```
+
+The environment variable pattern is `MRSM_SQL_<LABEL>` for SQL connectors.
+
+## Change the default instance
+
+By default, Meerschaum connects to `sql:main`. To permanently switch the default:
+
+<Steps>
+  <Step title="Open the config file">
+    ```bash
+    mrsm edit config
+    ```
+  </Step>
+  <Step title="Find the instance key">
+    Scroll to the bottom of the file and locate the `instance:` key.
+  </Step>
+  <Step title="Update the value">
+    Set the value to the keys of your preferred connector, e.g. `sql:local` or `sql:mydb`.
+
+    Run `mrsm show connectors` to see all registered connectors.
+  </Step>
+</Steps>
+
+## Python version support
+
+Meerschaum is tested on the following Python versions:
+
+- Python 3.9
+- Python 3.10
+- Python 3.11
+- Python 3.12
+- Python 3.13
+- Python 3.14
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Bootstrap a pipe" icon="wand-magic-sparkles" href="/get-started/bootstrap">
+    Use the interactive wizard to build and sync your first pipe.
+  </Card>
+  <Card title="Start the web API" icon="globe" href="/get-started/start-api">
+    Launch the web dashboard and REST API server.
+  </Card>
+</CardGroup>

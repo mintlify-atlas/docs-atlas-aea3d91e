@@ -1,0 +1,151 @@
+---
+title: "REST API Overview"
+description: "Overview of the Meerschaum REST API, authentication methods, and common conventions."
+---
+
+The Meerschaum API is a FastAPI application that exposes HTTP endpoints for managing pipes, plugins, jobs, users, connectors, and more. Start it with:
+
+```bash
+mrsm start api -p 8000
+```
+
+Interactive API documentation (Swagger UI) is available at `http://localhost:8000/docs` and ReDoc at `http://localhost:8000/redoc`.
+
+## Base URL
+
+All endpoints are relative to your API server root, for example:
+
+```
+http://localhost:8000
+```
+
+## Authentication
+
+The Meerschaum API uses **OAuth2 Bearer tokens** via the `Authorization: Bearer <token>` header.
+
+### Login (username / password)
+
+Obtain a short-lived access token by posting credentials:
+
+<CodeGroup>
+```bash curl
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=admin&password=secret"
+```
+
+```python Python
+import requests
+
+resp = requests.post(
+    "http://localhost:8000/login",
+    data={"username": "admin", "password": "secret"},
+)
+token = resp.json()["access_token"]
+```
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "access_token": "eyJhbGci...",
+  "token_type": "bearer",
+  "expires": "2026-01-02T00:00:00"
+}
+```
+
+### Client Credentials (API Token)
+
+Long-lived tokens can be registered with `mrsm register token` and used with the `client_credentials` grant:
+
+```bash
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=<CLIENT_ID>&client_secret=<CLIENT_SECRET>"
+```
+
+### Using the Token
+
+Pass the token in the `Authorization` header for all subsequent requests:
+
+```bash
+curl http://localhost:8000/mrsm/pipes \
+  -H "Authorization: Bearer eyJhbGci..."
+```
+
+## OAuth2 Scopes
+
+The API uses scopes to control access. Tokens and users are granted a set of scopes at login or token registration.
+
+| Scope | Description |
+|-------|-------------|
+| `pipes:read` | Read pipe metadata and data |
+| `pipes:write` | Sync data into pipes, edit parameters |
+| `pipes:delete` | Clear pipe data rows |
+| `pipes:drop` | Drop pipe target tables |
+| `plugins:read` | List and download plugins |
+| `jobs:read` | Read job metadata and logs |
+| `jobs:write` | Create and delete jobs |
+| `jobs:execute` | Start, stop, and pause jobs |
+| `users:read` | Read user information |
+| `users:write` | Edit users |
+| `users:register` | Register new users |
+| `users:delete` | Delete users |
+| `connectors:read` | Read connector configuration |
+| `actions:execute` | Execute server-side actions |
+| `*` | All scopes (admin) |
+
+## Endpoint Prefixes
+
+| Resource | Prefix |
+|----------|--------|
+| Pipes | `/mrsm/pipes` |
+| Plugins | `/mrsm/plugins` |
+| Jobs | `/mrsm/jobs` |
+| Logs | `/mrsm/logs` |
+| Users | `/mrsm/users` |
+| Connectors | `/mrsm/connectors` |
+| Login | `/login` |
+
+## Common Response Types
+
+### SuccessTuple
+
+Most write operations return a two-element array:
+
+```json
+[true, "Success"]
+```
+
+or on failure:
+
+```json
+[false, "Error message describing what went wrong."]
+```
+
+### HTTP Status Codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | OK |
+| `400` | Bad request (invalid parameters) |
+| `401` | Unauthorized (missing or invalid token) |
+| `403` | Forbidden (insufficient scope) |
+| `404` | Resource not found |
+| `409` | Conflict (e.g. pipe already registered) |
+| `413` | Request entity too large |
+| `422` | Unprocessable entity (validation error) |
+| `500` | Internal server error |
+
+## No-Auth Mode
+
+Start the API without authentication for development:
+
+```bash
+mrsm start api --insecure
+```
+
+<Warning>
+  Never run `--insecure` in production. All endpoints will be publicly accessible without credentials.
+</Warning>

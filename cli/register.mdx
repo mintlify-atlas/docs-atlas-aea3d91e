@@ -1,0 +1,189 @@
+---
+title: "mrsm register"
+description: "Register new pipes, plugins, users, connectors, or API tokens."
+---
+
+## Synopsis
+
+```bash
+mrsm register <subcommand> [arguments] [flags]
+```
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `pipes` | Create and register new pipe objects |
+| `plugins` | Upload a plugin to a repository |
+| `users` | Register a new user on an instance |
+| `connectors` | Register a connector programmatically |
+| `tokens` | Register a long-lived API access token |
+
+---
+
+## `register pipes`
+
+Create and register new `Pipe` objects on a Meerschaum instance.
+
+```bash
+mrsm register pipes -c <connector> -m <metric> [-l <location>]
+```
+
+<Warning>
+  Both `--connector-keys` (`-c`) and `--metric-keys` (`-m`) are required. Use `bootstrap pipes` for an interactive guided setup.
+</Warning>
+
+<ParamField query="-c, --connector-keys" type="string[]" required>
+  Connector key(s) for the pipe source (e.g. `sql:main`, `plugin:noaa`).
+</ParamField>
+
+<ParamField query="-m, --metric-keys" type="string[]" required>
+  Metric key(s) for the pipe (e.g. `weather`, `sales`).
+</ParamField>
+
+<ParamField query="-l, --location-keys" type="string[]">
+  Location key(s). Defaults to `None` (no location).
+</ParamField>
+
+<ParamField query="--params" type="json">
+  JSON dictionary of additional parameters to set on the pipe.
+</ParamField>
+
+<ParamField query="--tags" type="string[]">
+  Tags to apply to the pipe.
+</ParamField>
+
+```bash
+# Register a single pipe
+mrsm register pipes -c sql:main -m weather
+
+# Register with a location key
+mrsm register pipes -c sql:main -m weather -l nyc
+
+# Register with initial parameters
+mrsm register pipes -c plugin:noaa -m temperature --params '{"columns": {"datetime": "timestamp"}}'
+```
+
+---
+
+## `register plugins`
+
+Upload a locally installed plugin to a Meerschaum repository (API instance).
+
+```bash
+mrsm register plugins <plugin_name> [-r <repository>]
+```
+
+<ParamField query="plugin_name" type="string" required>
+  Name of the locally installed plugin to register.
+</ParamField>
+
+<ParamField query="-r, --repository" type="string">
+  Repository API connector to upload to (default: `api:mrsm`).
+</ParamField>
+
+<ParamField query="-y, --yes" type="flag">
+  Skip the description prompt.
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Overwrite existing plugin registration without prompting.
+</ParamField>
+
+```bash
+mrsm register plugins myplugin
+mrsm register plugins myplugin -r api:myrepo
+```
+
+---
+
+## `register users`
+
+Register a new user on a Meerschaum instance.
+
+```bash
+mrsm register users <username> [-i <instance>]
+```
+
+<ParamField query="username" type="string" required>
+  Username for the new user. Must meet the minimum length requirement.
+</ParamField>
+
+<ParamField query="-i, --instance" type="string">
+  Instance connector to register on (default: configured instance).
+</ParamField>
+
+```bash
+mrsm register users alice -i api:prod
+```
+
+---
+
+## `register connectors`
+
+Create a new connector programmatically using `--params` instead of the interactive `bootstrap connectors` wizard.
+
+```bash
+mrsm register connector <type:label> --params '<key:value>'
+```
+
+<ParamField query="type:label" type="string" required>
+  Connector keys in `type:label` format (e.g. `sql:tmp`).
+</ParamField>
+
+<ParamField query="--params" type="string | json">
+  Connector attributes. Accepts a `key:value` string or JSON dictionary.
+</ParamField>
+
+```bash
+# Register a SQLite connector
+mrsm register connector sql:tmp --params 'uri:sqlite:////tmp/tmp.db'
+
+# Register with a JSON params dict
+mrsm register connector -c sql:new --params '{"database": "/tmp/new.db"}'
+```
+
+---
+
+## `register tokens`
+
+Create a long-lived API access token for programmatic authentication.
+
+```bash
+mrsm register tokens [--name <label>] [--ttl-days <n> | --end <date>]
+```
+
+<Warning>
+  The client secret is shown only once at creation time. Write it down immediately.
+</Warning>
+
+<ParamField query="--name" type="string">
+  Optional human-readable label for the token (e.g. `weather-sensor`).
+</ParamField>
+
+<ParamField query="--ttl-days" type="int">
+  Number of days until the token expires.
+</ParamField>
+
+<ParamField query="--end" type="string">
+  Explicit expiration date in ISO 8601 format (e.g. `2032-01-01`). Omitting this and `--ttl-days` creates a non-expiring token.
+</ParamField>
+
+<ParamField query="--scopes" type="string[]">
+  Scopes to grant to the token.
+</ParamField>
+
+<ParamField query="-i, --instance" type="string">
+  Instance on which to register the token.
+</ParamField>
+
+```bash
+# Token that expires on a specific date
+mrsm register token --end 2032-01-01
+
+# Token that expires in 1000 days
+mrsm register token --ttl-days 1000
+
+# Named token (no expiration)
+mrsm register token --name weather-sensor
+```

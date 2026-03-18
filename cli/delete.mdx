@@ -1,0 +1,199 @@
+---
+title: "mrsm delete"
+description: "Delete pipes, plugins, users, connectors, jobs, configuration, virtual environments, or cache."
+---
+
+## Synopsis
+
+```bash
+mrsm delete <subcommand> [arguments] [flags]
+```
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `pipes` | Drop pipe tables and remove registrations |
+| `plugins` | Delete plugins from a repository |
+| `users` | Delete users from an instance |
+| `connectors` | Remove connector configuration |
+| `jobs` | Remove background jobs and their log files |
+| `config` | Delete configuration files |
+| `venvs` | Remove virtual environments |
+| `cache` | Clear local cache or temporary SQL/Valkey data |
+
+---
+
+## `delete pipes`
+
+Drop the target table and remove the pipe registration. This cannot be undone.
+
+```bash
+mrsm delete pipes [pipe filters] [-y] [-f]
+```
+
+<Warning>
+  This permanently drops the pipe's table **and** removes its registration. Use `drop pipes` to only drop the table while keeping the registration.
+</Warning>
+
+<ParamField query="-y, --yes" type="flag">
+  Skip the confirmation prompt.
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Force deletion without any prompt.
+</ParamField>
+
+```bash
+mrsm delete pipes -c sql:main -m weather
+mrsm delete pipes -m old_metric --force
+```
+
+---
+
+## `delete plugins`
+
+Delete a plugin from a Meerschaum repository.
+
+```bash
+mrsm delete plugins <plugin_name> [-r <repository>]
+```
+
+<Warning>
+  Plugin deletion from a repository cannot be undone.
+</Warning>
+
+<ParamField query="plugin_name" type="string" required>
+  Name of the plugin to delete.
+</ParamField>
+
+<ParamField query="-r, --repository" type="string">
+  Repository connector (default: `api:mrsm`).
+</ParamField>
+
+```bash
+mrsm delete plugins myplugin
+mrsm delete plugins myplugin -r api:myrepo --force
+```
+
+---
+
+## `delete users`
+
+Delete users from a Meerschaum instance. Admin permissions are required.
+
+```bash
+mrsm delete users <username> [-i <instance>]
+```
+
+<ParamField query="username" type="string" required>
+  Username to delete.
+</ParamField>
+
+<ParamField query="-i, --instance" type="string">
+  Instance connector where the user is registered.
+</ParamField>
+
+```bash
+mrsm delete users alice -i api:prod --force
+```
+
+---
+
+## `delete connectors`
+
+Remove a connector from the configuration file.
+
+```bash
+mrsm delete connectors <type:label>
+```
+
+For SQLite/DuckDB connectors, optionally also deletes the database file.
+
+```bash
+mrsm delete connectors sql:test
+mrsm delete connectors sql:test --force
+```
+
+---
+
+## `delete jobs`
+
+Remove a background job and its log files. Running jobs are stopped first.
+
+```bash
+mrsm delete jobs [<job_name>...] [-e <executor>]
+```
+
+<ParamField query="job_name" type="string">
+  Name(s) of jobs to delete. If omitted, prompts to delete all jobs.
+</ParamField>
+
+<ParamField query="-e, --executor-keys" type="string">
+  Executor key for the jobs.
+</ParamField>
+
+<ParamField query="-f, --force" type="flag">
+  Stop and delete without confirmation.
+</ParamField>
+
+```bash
+mrsm delete jobs my-sync-job
+mrsm delete jobs --force
+```
+
+---
+
+## `delete config`
+
+Delete Meerschaum configuration files.
+
+```bash
+mrsm delete config [<key>...]
+```
+
+If no keys are provided, all known configuration files are deleted.
+
+```bash
+mrsm delete config
+mrsm delete config myconfig
+```
+
+---
+
+## `delete venvs`
+
+Remove virtual environments. Specify which to remove, or remove all (except `mrsm`).
+
+```bash
+mrsm delete venvs [<venv_name>...]
+```
+
+<Note>
+  Run `mrsm upgrade packages` and `mrsm install required` to reinstall dependencies after removing venvs.
+</Note>
+
+---
+
+## `delete cache`
+
+Clear local cache files or temporary tables/keys from SQL or Valkey connectors.
+
+```bash
+mrsm delete cache [<connector_keys>...]
+```
+
+<ParamField query="connector_keys" type="string[]">
+  `sql:` or `valkey:` connector keys to clean cache from. If omitted, clears the local cache directory.
+</ParamField>
+
+```bash
+# Clear the local cache directory
+mrsm delete cache
+
+# Clean temporary tables from a SQL connector
+mrsm delete cache sql:main
+
+# Clean Valkey keys
+mrsm delete cache valkey:main sql:main
+```

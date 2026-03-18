@@ -1,0 +1,178 @@
+---
+title: "Bootstrapping"
+description: "Use the bootstrap wizard or Python API to create and register a new pipe."
+---
+
+Bootstrapping is the process of setting up a pipe's configuration — connector, metric, location, index columns, and optional definition — and registering it on an instance. You can bootstrap interactively through the CLI or programmatically in Python.
+
+## CLI wizard
+
+Run the following command to launch the interactive setup wizard:
+
+```bash
+mrsm bootstrap pipe --shell
+```
+
+<Note>
+  The `--shell` flag opens the Meerschaum shell after the action completes so you can run follow-up commands like `sync pipes` or `edit pipes`.
+</Note>
+
+The wizard walks you through the following steps:
+
+<Steps>
+  <Step title="Choose a connector">
+    You will be asked *Where are the data coming from?* and shown a list of configured connectors.
+
+    Type the connector's keys (`type:label`, e.g. `sql:myserver`) or type `New` to define a new connector. The connector type determines the protocol used to fetch data — `sql` and `api` are the most common types.
+  </Step>
+
+  <Step title="Set the metric">
+    Enter a descriptive label for the pipe's contents, such as `weather` or `energy`.
+  </Step>
+
+  <Step title="Set the location (optional)">
+    Enter an optional location label to differentiate this pipe from others with the same connector and metric. Leave it blank to use `None`.
+  </Step>
+
+  <Step title="Specify index columns">
+    You are prompted for a datetime column name and an optional ID column name. These columns are indexed on the table and used to efficiently sync incremental updates.
+
+    <Info>
+      If you omit the ID column, Meerschaum assumes the pipe contains a single data stream where datetime values are unique.
+    </Info>
+  </Step>
+
+  <Step title="Provide a definition">
+    The definition tells Meerschaum how to extract data from the source.
+
+    - **SQL connector**: your editor opens a `.sql` file for a SQL query.
+    - **API connector**: you are prompted for the remote pipe's connector, metric, and location.
+    - **Plugin / other connectors**: your editor opens the pipe's YAML attributes file. Plugin-specific configuration lives under the `fetch:` key.
+
+    <Warning>
+      SQL definitions are wrapped in a `WITH` clause at runtime. Do not include `ORDER BY` or other clauses that are disallowed inside SQL views.
+    </Warning>
+  </Step>
+
+  <Step title="Run the first sync">
+    If a valid definition and index columns were provided, you are asked whether to sync immediately. The first sync creates the table, applies indices, and loads the initial dataset.
+  </Step>
+</Steps>
+
+## Python API
+
+You can register and sync a pipe entirely in Python without the interactive wizard.
+
+<CodeGroup>
+
+```python Manual sync
+import meerschaum as mrsm
+
+# Define the pipe with its keys and configuration.
+pipe = mrsm.Pipe(
+    'csv', 'energy',
+    instance='sql:local',
+    columns={
+        'datetime': 'time',
+        'id': 'station_id',
+    },
+)
+
+# Sync a DataFrame directly — registration happens automatically.
+import pandas as pd
+df = pd.read_csv('data.csv')
+pipe.sync(df)
+```
+
+```python SQL connector
+import meerschaum as mrsm
+
+# Register a pipe that fetches from a remote SQL table.
+pipe = mrsm.Pipe(
+    'sql:remote_server', 'energy',
+    instance='sql:local',
+    parameters={
+        'fetch': {
+            'definition': 'SELECT * FROM energy_table',
+        },
+        'columns': {
+            'datetime': 'time',
+            'id': 'station_id',
+        },
+    },
+)
+
+# Fetch and sync from the remote definition.
+pipe.sync()
+```
+
+```python Plugin connector
+import meerschaum as mrsm
+
+# A plugin connector calls the plugin's fetch() or sync() method.
+pipe = mrsm.Pipe(
+    'plugin:noaa', 'weather',
+    instance='sql:local',
+    parameters={
+        'columns': {
+            'datetime': 'timestamp',
+            'id': 'station',
+        },
+        'noaa': {
+            'stations': ['KGMU', 'KCEU'],
+        },
+    },
+)
+
+pipe.sync()
+```
+
+</CodeGroup>
+
+### `Pipe.register()`
+
+Calling `pipe.sync()` on an unregistered pipe automatically calls `register()`. You can also register explicitly:
+
+```python
+success, message = pipe.register(debug=False)
+```
+
+For plugin connectors, `register()` calls the plugin's `register(pipe)` hook (if defined) to populate default parameters before writing to the instance.
+
+### `Pipe.bootstrap()`
+
+The `bootstrap()` method is the programmatic equivalent of the CLI wizard. It is interactive and not intended for automated scripts.
+
+```python
+success, message = pipe.bootstrap(
+    yes=False,    # Auto-agree to prompts
+    force=False,  # Skip prompts entirely
+    noask=False,  # Use defaults without asking
+)
+```
+
+## Dropping and deleting pipes
+
+| Command | Effect |
+|---|---|
+| `mrsm drop pipes` | Drops the table but keeps the pipe's registration and metadata. |
+| `mrsm delete pipes` | Drops the table and removes the pipe's registration from the instance. |
+
+In Python:
+
+```python
+pipe.drop()    # Remove the table, keep registration
+pipe.delete()  # Remove table and registration
+```
+
+## Editing a pipe after bootstrapping
+
+You can modify a pipe's parameters at any time:
+
+```bash
+# Open an editor for the pipe's parameters YAML
+mrsm edit pipes -l clemson
+
+# Open an editor for the pipe's SQL definition only
+mrsm edit pipes definition -l clemson
+```

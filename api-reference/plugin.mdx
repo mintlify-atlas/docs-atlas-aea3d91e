@@ -1,0 +1,192 @@
+---
+title: "Plugin"
+description: "Package, distribute, and interact with Meerschaum plugins using the Plugin class and plugin decorator functions."
+---
+
+Meerschaum plugins are Python modules that extend Meerschaum with custom connectors, actions, API routes, and dashboard pages. The `Plugin` class provides metadata and management for installed plugins.
+
+## `Plugin` Class
+
+```python
+from meerschaum import Plugin
+# or:
+from meerschaum.core import Plugin
+```
+
+### Constructor
+
+```python
+Plugin(
+    name: str,
+    version: Optional[str] = None,
+    user_id: Optional[int] = None,
+    required: Optional[List[str]] = None,
+    attributes: Optional[Dict[str, Any]] = None,
+    repo: Optional[str] = None,
+)
+```
+
+<ParamField path="name" type="str">
+  The plugin's name. To target a specific repository, use the `name@repo` syntax, e.g. `'my_plugin@api:main'`.
+</ParamField>
+
+<ParamField path="version" type="str | None" default="None">
+  Optional version string. If `None`, the version is read from the plugin module's `__version__` attribute.
+</ParamField>
+
+<ParamField path="required" type="List[str] | None" default="None">
+  Optional list of required packages for this plugin.
+</ParamField>
+
+<ParamField path="repo" type="str | None" default="None">
+  The repository connector keys (e.g. `'api:main'`) where this plugin is hosted.
+</ParamField>
+
+### Key Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `name` | `str` | The plugin's name |
+| `version` | `str \| None` | Plugin version from `__version__` attribute |
+| `module` | `module \| None` | The loaded Python module |
+| `__file__` | `str \| None` | File path to the plugin's Python file or `__init__.py` |
+| `repo_connector` | `APIConnector` | The repository connector for this plugin |
+| `archive_path` | `Path` | Path to the plugin's `.tar.gz` archive |
+| `venv_path` | `Path` | Path to the plugin's virtual environment |
+
+---
+
+## Plugin Decorators
+
+The `meerschaum.plugins` module provides decorators for extending Meerschaum.
+
+### `@make_action`
+
+Register a function as a Meerschaum CLI action:
+
+```python
+from meerschaum.plugins import make_action
+
+@make_action
+def my_action(**kwargs):
+    print('Hello from my action!')
+    return True, "Success"
+```
+
+The decorated function must accept `**kwargs` and return a `SuccessTuple`.
+
+### `@pre_sync_hook`
+
+Register a function to execute right before a pipe sync:
+
+```python
+from meerschaum.plugins import pre_sync_hook
+
+@pre_sync_hook
+def log_sync(pipe, **kwargs):
+    print(f"About to sync {pipe} with kwargs:\n{kwargs}.")
+```
+
+### `@post_sync_hook`
+
+Register a function to execute after a pipe sync completes:
+
+```python
+from meerschaum.plugins import post_sync_hook
+from meerschaum.utils.misc import interval_str
+from datetime import timedelta
+
+@post_sync_hook
+def log_sync(pipe, success_tuple, duration=None, **kwargs):
+    duration_delta = timedelta(seconds=duration)
+    duration_text = interval_str(duration_delta)
+    print(f"It took {duration_text} to sync {pipe}.")
+```
+
+### `@api_plugin`
+
+Extend the Meerschaum FastAPI app. The decorated function receives the `app` instance:
+
+```python
+from meerschaum.plugins import api_plugin
+
+@api_plugin
+def initialize_plugin(app):
+    @app.get('/my/new/path')
+    def new_path():
+        return {'message': 'It works!'}
+```
+
+### `@web_page`
+
+Add a page to the Meerschaum Dash web application:
+
+```python
+import meerschaum as mrsm
+from meerschaum.plugins import web_page
+
+html = mrsm.attempt_import('dash.html')
+
+@web_page('foo/bar', login_required=False)
+def foo_bar():
+    return html.Div([html.H1("Hello, World!")])
+```
+
+<ParamField path="page" type="str | None">
+  The URL path for the page (relative to `/dash/`). Defaults to the function name.
+</ParamField>
+
+<ParamField path="login_required" type="bool" default="True">
+  If `True`, require login before viewing the page.
+</ParamField>
+
+### `@dash_plugin`
+
+Execute a function when the Dash application starts:
+
+```python
+from meerschaum.plugins import dash_plugin
+
+@dash_plugin
+def init_dash(app):
+    # Register callbacks, layouts, etc.
+    pass
+```
+
+---
+
+## Writing a Plugin
+
+A plugin is a Python file (or package) placed in the Meerschaum plugins directory. Here is the structure of a minimal data connector plugin:
+
+```python
+# ~/.config/meerschaum/plugins/my_plugin.py
+
+__version__ = '1.0.0'
+required = ['requests>=2.28']
+
+def fetch(pipe, **kwargs):
+    """
+    Return a DataFrame of new data for the pipe.
+    This function is called automatically during `pipe.sync()`.
+    """
+    import requests
+    import pandas as pd
+
+    response = requests.get('https://api.example.com/data')
+    return pd.DataFrame(response.json())
+```
+
+<Tip>
+  Bootstrap a new plugin with `mrsm bootstrap plugin`. This wizard creates the file structure and configuration for you.
+</Tip>
+
+### Installing and Publishing
+
+```bash
+# Install a plugin from the default repository
+mrsm install plugins my_plugin
+
+# Publish to a repository
+mrsm register plugin my_plugin -r api:main
+```

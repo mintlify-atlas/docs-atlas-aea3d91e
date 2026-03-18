@@ -1,0 +1,161 @@
+---
+title: "Plugin repositories"
+description: "Install plugins from public or private Meerschaum repositories, and publish your own plugins for others to use."
+---
+
+Meerschaum makes it easy to install, share, and publish plugins. The public repository at `api.mrsm.io` is the default, but any Meerschaum API instance can act as a private repository.
+
+## Installing plugins
+
+Install plugins with the `install plugins` command:
+
+```bash
+mrsm install plugins noaa color
+```
+
+To install from a private repository, use the `-r` / `--repository` flag:
+
+```bash
+mrsm install plugins example -r api:myapi
+```
+
+## Changing your default repository
+
+By default, plugins are installed from and published to the public `api:mrsm` repository. To change the default:
+
+<Steps>
+  <Step title="Open your configuration file">
+    ```bash
+    mrsm edit config
+    ```
+  </Step>
+  <Step title="Update the default repository">
+    Change the value of `meerschaum:default_repository` to the connector keys of your repository:
+
+    ```yaml
+    meerschaum:
+      default_repository: api:myrepo
+    ```
+  </Step>
+</Steps>
+
+## Publishing plugins
+
+To publish a plugin to a repository, you need a user account on that repository.
+
+<Steps>
+  <Step title="Create a user account (new repositories only)">
+    ```bash
+    mrsm register user <username>
+    ```
+
+    Skip this step if you are connecting to an existing repository where you already have an account.
+  </Step>
+  <Step title="Start the API server (self-hosted repositories only)">
+    ```bash
+    mrsm start api
+    ```
+
+    Skip this step if you are publishing to an existing remote repository.
+  </Step>
+  <Step title="Register and upload your plugin">
+    ```bash
+    mrsm register plugin <plugin> --repo api:<label>
+    ```
+
+    If you are uploading to your local machine, use `api:local` as the label:
+
+    ```bash
+    mrsm register plugin myplugin --repo api:local
+    ```
+  </Step>
+</Steps>
+
+<Info>
+  To publish a new version of your plugin, you must increment `__version__` in your plugin module according to [SemVer](https://semver.org/) before running `register plugin`.
+</Info>
+
+## Using installed plugins
+
+How you use a plugin depends on its type:
+
+<AccordionGroup>
+  <Accordion title="Data plugins (fetch or sync)">
+    Bootstrap a pipe and choose the plugin as the connector:
+
+    ```bash
+    # Interactive wizard
+    mrsm bootstrap pipe
+
+    # Or directly — e.g. for the noaa plugin
+    mrsm register pipe -c plugin:noaa -m weather -l atl -i sql:local
+    mrsm sync pipes -c plugin:noaa
+    ```
+  </Accordion>
+  <Accordion title="Action plugins">
+    The new commands are available immediately after installation:
+
+    ```bash
+    # See all available actions including those from plugins
+    mrsm show actions
+
+    # Run the action provided by your plugin
+    mrsm <action-name>
+    ```
+  </Accordion>
+  <Accordion title="API plugins">
+    API plugin endpoints are registered when the web API starts:
+
+    ```bash
+    mrsm start api
+    ```
+
+    Visit `http://localhost:8000/docs` to browse endpoints in the Swagger UI.
+  </Accordion>
+  <Accordion title="Dash (web console) plugins">
+    Web pages from Dash plugins appear in the web console when the API is running:
+
+    ```bash
+    mrsm start api
+    ```
+
+    Then navigate to the web console and look for your plugin's page in the sidebar.
+  </Accordion>
+</AccordionGroup>
+
+## Hosting a private repository
+
+Any Meerschaum API instance can act as a private plugin repository. This is useful for teams that want to share internal plugins without publishing them publicly.
+
+<Steps>
+  <Step title="Start a Meerschaum API instance">
+    ```bash
+    mrsm start api
+    ```
+  </Step>
+  <Step title="Register a user on the instance">
+    ```bash
+    mrsm register user myuser -r api:local
+    ```
+  </Step>
+  <Step title="Publish plugins to your instance">
+    ```bash
+    mrsm register plugin myplugin -r api:local
+    ```
+  </Step>
+  <Step title="Install plugins from your instance">
+    Team members can install from your private repository:
+
+    ```bash
+    mrsm install plugins myplugin -r api:mycompany
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  The connector keys for a repository follow the same format as any API connector: `api:<label>`. Configure the label and connection details with `mrsm bootstrap connector` or as an environment variable:
+
+  ```bash
+  export MRSM_API_MYCOMPANY='{"host": "meerschaum.mycompany.com", "port": 8000}'
+  ```
+</Note>

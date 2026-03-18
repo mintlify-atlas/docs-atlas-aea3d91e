@@ -1,0 +1,156 @@
+---
+title: "Environment Variables"
+description: "Configure and isolate Meerschaum installations using MRSM_ environment variables."
+---
+
+Meerschaum's behavior can be controlled entirely through environment variables. This makes it straightforward to emulate multiple isolated installations and to pass configuration to containers and subprocesses without touching config files.
+
+To inspect which `MRSM_` variables are currently active:
+
+```bash
+mrsm show environment
+```
+
+## Reference
+
+<AccordionGroup>
+  <Accordion title="MRSM_ROOT_DIR" defaultOpen>
+    **Default:** `~/.config/meerschaum` (Windows: `%APPDATA%\Meerschaum`)
+
+    Sets the root Meerschaum directory. This is the primary mechanism for isolating a Meerschaum installation: setting a different path recreates configuration files and virtual environments as if running a clean install.
+
+    ```bash
+    mkdir foo
+    MRSM_ROOT_DIR=foo mrsm show environment
+    ```
+
+    This is equivalent to creating a Python virtual environment with `venv` — each root directory is a fully self-contained Meerschaum environment.
+  </Accordion>
+
+  <Accordion title="MRSM_PLUGINS_DIR">
+    Overrides the plugins directory independently of the root. Useful for managing plugins under version control.
+
+    ```bash
+    mkdir plugins
+    touch plugins/example.py
+    MRSM_PLUGINS_DIR=plugins mrsm show plugins
+    ```
+
+    ### Multiple plugins directories
+
+    Separate multiple paths with `:` (like `$PATH`):
+
+    ```bash
+    export MRSM_PLUGINS_DIR='./plugins:/another/plugins/path'
+    ```
+
+    Or set it to a JSON-encoded list:
+
+    ```bash
+    export MRSM_PLUGINS_DIR='[
+        "./plugins",
+        "/another/plugins/path"
+    ]'
+    ```
+  </Accordion>
+
+  <Accordion title="MRSM_CONFIG">
+    Patch the active configuration with a JSON object or a simplified `key:value` string. Supports Meerschaum symlink syntax to reference other config keys.
+
+    ```bash
+    # Patch with JSON
+    MRSM_CONFIG='{"foo": {"bar": 123}}' mrsm show config foo
+
+    # Simplified key:value syntax
+    MRSM_CONFIG='foo:123' mrsm show config foo
+
+    # Reference another config key via symlink
+    MRSM_CONFIG='foo:MRSM{meerschaum:connectors:sql:main:password}' mrsm show config foo
+    ```
+  </Accordion>
+
+  <Accordion title="MRSM_PATCH">
+    Identical to `MRSM_CONFIG` but applied **after** it, so you can symlink keys defined in `MRSM_CONFIG`.
+
+    ```bash
+    MRSM_CONFIG='{"foo": {"bar": 123}}' \
+    MRSM_PATCH='baz:MRSM{foo:bar}' \
+      mrsm show config baz
+    ```
+  </Accordion>
+
+  <Accordion title="MRSM_CONFIG_DIR">
+    **Default:** `$MRSM_ROOT_DIR/config`
+
+    Designates a separate directory outside the root for configuration files. Useful for secrets management or separating configuration from application data (e.g. Kubernetes deployments where config is mounted separately).
+  </Accordion>
+
+  <Accordion title="MRSM_VENVS_DIR">
+    Designates a separate directory for virtual environments outside the Meerschaum root. Useful for sharing virtual environments between multiple deployments or separating package data from user data.
+
+    ```bash
+    MRSM_VENVS_DIR='venvs/' mrsm show plugins
+    ```
+  </Accordion>
+
+  <Accordion title="MRSM_&lt;TYPE&gt;_&lt;LABEL&gt;">
+    Register a connector temporarily by setting a variable named `MRSM_<TYPE>_<LABEL>`. The value is the connector's URI. `<TYPE>` and `<LABEL>` are automatically lowercased.
+
+    ```bash
+    MRSM_SQL_FOO=sqlite:////tmp/temp.db \
+    MRSM_API_BAR=http://user:pass@localhost:8000 \
+      mrsm show connectors
+    ```
+
+    This is useful in CI/CD pipelines and container environments where you want to inject connector credentials without modifying persistent configuration.
+  </Accordion>
+</AccordionGroup>
+
+## Isolation Patterns
+
+<CardGroup cols={2}>
+  <Card title="Isolated root" icon="box">
+    Run Meerschaum against a completely isolated environment with no shared state:
+
+    ```bash
+    MRSM_ROOT_DIR=/tmp/isolated-mrsm mrsm show version
+    ```
+  </Card>
+  <Card title="CI/CD connector injection" icon="key">
+    Inject connectors via environment variables in pipelines:
+
+    ```bash
+    MRSM_SQL_PROD=postgresql://user:pass@db:5432/prod \
+      mrsm sync pipes -i sql:prod
+    ```
+  </Card>
+  <Card title="Shared virtual environments" icon="share">
+    Share a single venvs directory across multiple deployments:
+
+    ```bash
+    MRSM_VENVS_DIR=/shared/venvs \
+    MRSM_ROOT_DIR=/app/mrsm-1 \
+      mrsm start api
+    ```
+  </Card>
+  <Card title="Config patching in containers" icon="docker">
+    Override config at container startup without baking it into the image:
+
+    ```bash
+    MRSM_CONFIG='{"meerschaum":{"instance":"sql:prod"}}' \
+      mrsm sync pipes
+    ```
+  </Card>
+</CardGroup>
+
+## Compose Integration
+
+Meerschaum Compose sets `MRSM_ROOT_DIR`, `MRSM_PLUGINS_DIR`, and other environment variables automatically for the project's subprocess. The `environment` key in `mrsm-compose.yaml` lets you pass additional variables to all subprocesses:
+
+```yaml
+environment:
+  MY_API_KEY: "${MY_API_KEY}"
+  DEBUG: "true"
+```
+
+See [Meerschaum Compose](/reference/compose) for details.

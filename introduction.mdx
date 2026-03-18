@@ -1,0 +1,88 @@
+---
+title: "Introduction"
+description: "Meerschaum is a Python framework and CLI tool for building, managing, and synchronizing time-series data pipelines."
+---
+
+<img
+  src="https://meerschaum.io/assets/banner_1920x320.png"
+  alt="Meerschaum banner"
+  style={{ width: "100%", borderRadius: "8px" }}
+/>
+
+## What is Meerschaum?
+
+Meerschaum is a tool for quickly synchronizing time-series data streams called **pipes**. With Meerschaum, you can have a data visualization stack running in minutes.
+
+The core idea is simple: define where your data comes from, and Meerschaum handles **incremental updates** automatically. It fetches only the data you need, deduplicates rows, and upserts changes — so your pipelines stay fresh without full reloads.
+
+## Why Meerschaum?
+
+If you've worked with time-series data, you know the headaches that come with ETL. Data engineering often gets in analysts' way, and every minute spent on pipelining is time taken from real analysis.
+
+Rather than copy-pasting ETL scripts, build pipes with Meerschaum and let the framework handle the rest.
+
+<CardGroup cols={2}>
+  <Card title="Incremental Updates" icon="rotate">
+    Fetch only new data. Meerschaum calculates the correct sync window and handles deduplication automatically.
+  </Card>
+  <Card title="Plugin System" icon="plug">
+    Ingest any data source by writing a simple `fetch()` function that returns a DataFrame.
+  </Card>
+  <Card title="Multi-Connector Support" icon="database">
+    Connect to PostgreSQL, TimescaleDB, MySQL, SQLite, MSSQL, DuckDB, and more via SQL connectors.
+  </Card>
+  <Card title="CLI + Python API" icon="terminal">
+    Manage everything from the `mrsm` CLI or programmatically with the Python API.
+  </Card>
+  <Card title="Docker Stack" icon="docker">
+    One command deploys TimescaleDB + Grafana for instant visualization of your data streams.
+  </Card>
+  <Card title="Background Jobs" icon="clock">
+    Schedule pipes to sync automatically with systemd or the built-in job system.
+  </Card>
+</CardGroup>
+
+## Key Concepts
+
+### Pipes
+
+A **pipe** is a data stream defined by three labels:
+
+- **Connector** — where the data comes from (e.g., `plugin:noaa`, `sql:main`)
+- **Metric** — what the data represents (e.g., `weather`, `sales`)
+- **Location** — an optional tag for grouping (e.g., `nyc`, `atl`)
+
+```python
+import meerschaum as mrsm
+
+pipe = mrsm.Pipe('plugin:noaa', 'weather', 'atl', instance='sql:local')
+```
+
+### Connectors
+
+**Connectors** define database connections and data sources. Meerschaum supports SQL connectors (PostgreSQL, SQLite, etc.), API connectors, and custom plugin connectors.
+
+### Plugins
+
+**Plugins** extend Meerschaum with new data sources. A plugin is a Python file with a `fetch()` function that returns a DataFrame.
+
+### Instances
+
+An **instance** is where pipe metadata and data are stored. The default is `sql:main` (a local SQLite database).
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get Meerschaum installed and your first pipe syncing in 5 minutes.
+  </Card>
+  <Card title="Installation Guide" icon="download" href="/get-started/installation">
+    Detailed installation instructions for all platforms.
+  </Card>
+  <Card title="Bootstrap a Pipe" icon="pipe-section" href="/get-started/bootstrap">
+    Use the interactive wizard to set up your first data pipeline.
+  </Card>
+  <Card title="Pipe Reference" icon="book" href="/reference/pipes">
+    Deep dive into pipe configuration, syncing, and parameters.
+  </Card>
+</CardGroup>

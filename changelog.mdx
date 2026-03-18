@@ -1,0 +1,233 @@
+---
+title: "Changelog"
+description: "Release history and notable changes for Meerschaum."
+---
+
+## 3.1.x Releases
+
+This is the current release cycle.
+
+### v3.1.8
+
+- **Fix issue with CTEs (`WITH` keyword) and `UNION ALL` subqueries.**
+  A bug has been fixed where queries containing both CTEs (`WITH`) and `UNION ALL` queries would break the query parser.
+
+- **Add the schema to the `drop pipes` confirmation prompt.**
+  A SQL pipe's table schema is now included in the confirmation prompt for clarity.
+
+- **Upgrade `xterm.js`.**
+  The latest `xterm.js` (v6.0.0) is now included for the webterm. This also resolves scrollbar issues on Chromium-based browsers.
+
+- **Upgrade `dash` to 4.0.**
+  The web dashboard has been upgraded to Plotly Dash 4, which improves the multi-select dropdowns.
+
+### v3.1.7
+
+- **Fix `is_systemd_available()` for older versions of `systemd`.**
+  Older versions of `systemd` (e.g. on the Raspberry Pi) are now correctly detected.
+
+- **Handle explicitly `None` environments for `run_python_package()`.**
+  Resolves a subprocess issue with `compose`.
+
+- **Fix default database configuration for Grafana.**
+  New deployments correctly configure the default Meerschaum database source.
+
+- **Properly cancel jobs when CTRL+C is pressed on confirmation.**
+
+### v3.1.4 — v3.1.6
+
+- **Add support for ESRI CRS for `geometry` columns.**
+  In addition to EPSG projections, pipes with geometry data may now sync shapefiles with ESRI (or other authority) projections:
+
+  ```python
+  import meerschaum as mrsm
+
+  pipe = mrsm.Pipe(
+      'demo', 'geometry', 'esri',
+      columns={'primary': 'id'},
+      dtypes={'geo': 'geometry[esri:102003]'}
+  )
+  pipe.sync([{'id': 1, 'geo': 'POINT (0 0)'}])
+  gdf = pipe.get_data()
+  print(gdf.crs.to_authority())
+  # ('ESRI', '102003')
+  ```
+
+- **Add `Pipe.metric` and `Pipe.location` aliases.**
+  The keys `metric_key` and `location_key` may now be accessed via `metric` and `location`:
+
+  ```python
+  import meerschaum as mrsm
+
+  pipe = mrsm.Pipe('demo', 'aliases', target='{{ self.metric }}')
+  print(pipe.target)
+  # aliases
+  ```
+
+- **Remove `None` return for `Pipe.connector` with invalid keys.**
+  Rather than returning `None` for pipes with invalid connectors, return the verbatim connector keys string.
+
+- **Fix `api_key` login schemes for `api` connectors.**
+
+- **Fix client credentials for remote jobs.**
+
+### v3.1.3
+
+- **Fix syncing pipes with integer datetimes.**
+  Improved dtype detection for pipes with integer datetimes.
+
+- **Fix recursive parameters references.**
+  A single pipe may now reference itself when symlinking parameters.
+
+- **Add `self` syntax for parameters symlinking.**
+  Pipes may now use `self` in parameters rather than the fully qualified name:
+
+  ```python
+  import meerschaum as mrsm
+
+  pipe = mrsm.Pipe(
+      'sql:memory', 'symlink', 'self',
+      instance='sql:memory',
+      parameters={
+          'custom': {'value': 123},
+          'sql': "SELECT * FROM foo WHERE val = {{ self.parameters['custom']['value'] }}",
+      },
+  )
+  print(pipe.parameters['sql'])
+  # SELECT * FROM foo WHERE val = 123
+  ```
+
+### v3.1.2
+
+- **Improve filtering logic for non-datetime pipes.**
+  The `Pipe.filter_existing()` method now correctly applies non-datetime filters when syncing dataframes.
+
+- **Handle mixed nulls when filtering dataframes.**
+  Dataframes with different null representations (empty strings, `None`, `pd.NA`) are now correctly coerced.
+
+- **Fix minor cache race condition.**
+  Additional safeguards ensure cached values are read correctly when syncing with many concurrent chunks.
+
+- **Bump Docker base to Python 3.14.**
+  The Docker image has been rebased to `fedora:43` which ships with Python 3.14.
+
+### v3.1.0 — v3.1.1
+
+- **Improve `geometry` performance.**
+  Enforcing dtypes for pipes with `geometry` columns has been significantly improved.
+
+- **Add safeguards to in-place syncs.**
+  Attempting to sync an in-place SQL pipe without index columns configured will now gracefully fail.
+
+- **Add action `delete cache`.**
+  Users may manually purge local or Valkey cache with `delete cache` or `clear cache`.
+
+- **Clean up stray cache directories.**
+  Deleting pipes automatically removes empty cache directories.
+
+- **Deprecate the `api` Docker tag.**
+  The `latest` Docker tag now represents `full`. The `api` tag exists only for backwards compatibility.
+
+---
+
+## 3.0.x Releases
+
+### v3.0.9 — v3.0.10
+
+- **Disable CLI daemon by default.**
+  New installations disable the CLI daemon by default. It may be enabled by setting `system.experimental.cli_daemon` to `true`.
+
+- **Support `geopackage` SQLConnectors.**
+  The `geopackage` flavor (an extension of `sqlite`) enables syncing geometry data as GeoPackage-WKB.
+
+- **Add FontAwesome icons to the Dash app.**
+  Plugins using the `@web_page` feature now have access to FontAwesome icons.
+
+- **Fix the Valkey stack data directory.**
+
+### v3.0.6 — v3.0.8
+
+- **Fix stack config for new deployments.**
+- **Handle other null-like values when syncing to PostgreSQL.**
+- **Fix web dashboard SQL editor.**
+- **Add "Resolve symlinks" to web dashboard SQL Editor.**
+- **Improve performance when fetching pipes' tags on the web dashboard.**
+- **Preserve symlinks when copying pipes.**
+
+### v3.0.3 — v3.0.5
+
+- **Fix pipe page routing.**
+- **Fix cache invalidation for pipes using Valkey connectors.**
+- **Fix Python 3.9 compatibility.**
+- **Prevent resolving symlinks for pipe's parameters card.**
+- **Handle `pd.NA` values in JSON columns for `filter_unseen_df()`.**
+
+### v3.0.1 — v3.0.2
+
+- **Change the working directory for each action executed by the CLI daemon.**
+- **Fix environment variables handling within the CLI daemon.**
+- **Reload the CLI daemon after upgrading packages.**
+
+### v3.0.0
+
+- **Inherit another pipe's base parameters with `reference`.**
+  Pipes may inherit the base parameters of other pipes by setting the `reference` key:
+
+  ```python
+  import meerschaum as mrsm
+
+  base_pipe = mrsm.Pipe(
+      'demo', 'reference', 'parent',
+      instance='sql:memory',
+      columns={'datetime': 'ts', 'id': 'id'},
+      parameters={'custom': {'foo': 'bar', 'color': 'red'}},
+  )
+  base_pipe.register()
+
+  pipe = mrsm.Pipe(
+      'demo', 'reference', 'child',
+      instance='sql:memory',
+      parameters={
+          'reference': {
+              'connector': 'demo',
+              'metric': 'reference',
+              'location': 'parent',
+              'instance': 'sql:memory',
+          },
+          'custom': {'color': 'blue'},
+      },
+  )
+  print(pipe.parameters)
+  # {'custom': {'foo': 'bar', 'color': 'blue'}, 'columns': {'datetime': 'ts', 'id': 'id'}}
+  ```
+
+- **Dynamically symlink to other pipes' attributes.**
+  Reference attributes of other pipes using the `{{ Pipe(...) }}` syntax:
+
+  ```python
+  import meerschaum as mrsm
+
+  pipe = mrsm.Pipe(
+      'demo', 'symlink', 'child',
+      instance='sql:memory',
+      parameters={
+          'target': "{{ Pipe('demo', 'symlink', instance='sql:memory').target }}",
+          'columns': "{{ Pipe('demo', 'symlink', instance='sql:memory').columns }}",
+      },
+  )
+  ```
+
+- **Add `MRSM` config symlinks to pipe parameters.**
+  Reference your Meerschaum configuration from within pipe parameters using the `MRSM{...}` syntax:
+
+  ```python
+  import meerschaum as mrsm
+
+  pipe = mrsm.Pipe(
+      'demo', 'config_symlinks',
+      parameters={
+          'username': 'MRSM{meerschaum:connectors:sql:main:username}',
+          'password': 'MRSM{meerschaum:connectors:sql:main:password}',
+      }
+  )
+  ```
