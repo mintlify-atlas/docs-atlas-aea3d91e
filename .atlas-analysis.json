@@ -1,0 +1,177 @@
+{
+  "projectType": "data-platform",
+  "projectName": "Meerschaum",
+  "projectDescription": "Meerschaum is a Python framework and CLI tool for building, managing, and synchronizing time-series data pipelines (pipes) across SQL, API, and plugin-based connectors.",
+  "theme": "palm",
+  "primaryColor": "#3466b9",
+  "lightColor": "#8e391e",
+  "darkColor": "#c1c6cd",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "get-started/installation",
+              "get-started/bootstrap",
+              "get-started/start-api",
+              "get-started/compose-projects"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "reference/pipes",
+              "reference/pipes/bootstrapping",
+              "reference/pipes/syncing",
+              "reference/pipes/parameters",
+              "reference/pipes/tags"
+            ]
+          },
+          {
+            "group": "Connectors",
+            "pages": [
+              "reference/connectors",
+              "reference/connectors/sql-connectors",
+              "reference/connectors/api-connectors",
+              "reference/connectors/instance-connectors",
+              "reference/connectors/other-connectors"
+            ]
+          },
+          {
+            "group": "Plugins",
+            "pages": [
+              "reference/plugins",
+              "reference/plugins/writing-plugins",
+              "reference/plugins/types-of-plugins",
+              "reference/plugins/repositories"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "reference/actions",
+              "reference/background-jobs",
+              "reference/stack",
+              "reference/compose",
+              "reference/environment",
+              "reference/meerschaum-portable"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "reference/api-instance",
+              "reference/data-analysis-tools"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "faq",
+              "changelog"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Python API",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/pipe",
+              "api-reference/connector",
+              "api-reference/plugin",
+              "api-reference/job",
+              "api-reference/get-pipes",
+              "api-reference/get-connector"
+            ]
+          },
+          {
+            "group": "CLI Reference",
+            "pages": [
+              "cli/overview",
+              "cli/sync",
+              "cli/register",
+              "cli/bootstrap",
+              "cli/show",
+              "cli/edit",
+              "cli/delete",
+              "cli/install",
+              "cli/start",
+              "cli/stop",
+              "cli/stack"
+            ]
+          },
+          {
+            "group": "REST API",
+            "pages": [
+              "rest-api/overview",
+              "rest-api/pipes",
+              "rest-api/plugins",
+              "rest-api/jobs",
+              "rest-api/users",
+              "rest-api/connectors"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Incremental time-series data synchronization via Pipes",
+    "CLI tool (`mrsm`) for managing all data operations",
+    "Python API for programmatic pipe management",
+    "Plugin system to ingest any data source with a simple fetch function",
+    "Multi-connector support: SQL, API, ValKey, and custom connectors",
+    "Built-in web API using FastAPI/uvicorn for serving data",
+    "Docker stack with TimescaleDB and Grafana for instant visualization",
+    "Background jobs and systemd integration for scheduled syncing",
+    "Compose projects for declarative pipeline configuration",
+    "Virtual environment management for plugin dependencies"
+  ],
+  "publicApiSurface": [
+    "mrsm.Pipe",
+    "mrsm.Plugin",
+    "mrsm.Job",
+    "mrsm.Connector",
+    "mrsm.InstanceConnector",
+    "mrsm.get_pipes()",
+    "mrsm.get_connector()",
+    "mrsm.get_config()",
+    "mrsm.Venv",
+    "mrsm.SuccessTuple",
+    "mrsm.pprint()",
+    "mrsm.make_connector()",
+    "mrsm.attempt_import()",
+    "mrsm.entry()",
+    "Pipe.sync()",
+    "Pipe.get_data()",
+    "Pipe.fetch()",
+    "Pipe.delete()",
+    "Pipe.drop()",
+    "Pipe.clear()",
+    "Pipe.verify()",
+    "Pipe.deduplicate()",
+    "Pipe.bootstrap()",
+    "Pipe.get_columns()",
+    "Pipe.dtypes",
+    "Plugin.register()",
+    "Plugin.fetch()",
+    "mrsm sync pipes",
+    "mrsm register pipe",
+    "mrsm bootstrap pipe",
+    "mrsm show pipes",
+    "mrsm install plugin",
+    "mrsm start api",
+    "mrsm stack up",
+    "mrsm start job",
+    "mrsm stop job"
+  ]
+}
