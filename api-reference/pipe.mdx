@@ -116,8 +116,16 @@ meerschaum.Pipe(
   If `True`, prevent instance tables (pipes, users, plugins) from being created.
 </ParamField>
 
+<ParamField path="precision" type="str | Dict[str, str | int] | None" default="None">
+  Sets the precision of the datetime index. May be a string unit (e.g. `'microsecond'`, `'millisecond'`, `'second'`) or a dict of `{'unit': ..., 'interval': ...}`. Defaults to the precision implied by the `datetime` column dtype.
+</ParamField>
+
 <ParamField path="cache" type="bool | None" default="None">
   If `True`, cache the pipe's metadata to disk in addition to in-memory caching.
+</ParamField>
+
+<ParamField path="cache_connector_keys" type="str | None" default="None">
+  If provided, use the given Valkey connector keys (e.g. `'valkey:main'`) for caching pipe metadata.
 </ParamField>
 
 ---
@@ -204,8 +212,20 @@ df = pipe.get_data(
   If `True`, return a generator of DataFrame chunks.
 </ParamField>
 
+<ParamField path="as_chunks" type="bool" default="False">
+  Alias for `as_iterator`.
+</ParamField>
+
 <ParamField path="as_dask" type="bool" default="False">
   If `True`, return a `dask.DataFrame` (load into Pandas with `.compute()`).
+</ParamField>
+
+<ParamField path="chunk_interval" type="timedelta | int | None" default="None">
+  When `as_iterator=True`, the time interval separating each chunk's `begin` and `end`. Defaults to 1 day (1440 minutes).
+</ParamField>
+
+<ParamField path="add_missing_columns" type="bool" default="False">
+  If `True`, add columns from `Pipe.dtypes` that are missing from the returned DataFrame.
 </ParamField>
 
 <ParamField path="limit" type="int | None" default="None">
@@ -216,7 +236,11 @@ df = pipe.get_data(
   Sort the result by index columns. Pass `None` to skip sorting.
 </ParamField>
 
-**Returns:** `pd.DataFrame | None`
+<ParamField path="fresh" type="bool" default="False">
+  If `True`, skip the local cache and query the instance connector directly.
+</ParamField>
+
+**Returns:** `pd.DataFrame | Iterator[pd.DataFrame] | None`
 
 ---
 
